@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     refresh_days: int = 7
     env: str = "dev"  # dev | staging | production
     cors_origins: List[str] = Field(default_factory=lambda: ["http://localhost:8000"])
+    auto_demo: bool = False                   # on an empty database, seed the tagged simulation at startup (cloud demo)
+    auto_demo_as_of: str = "2026-10-25"
 
     # --- domain parameters (calibrated from survey / mentor; see docs/adr/ADR-004)
     horizon_days: int = 14                    # model target: failure within H days

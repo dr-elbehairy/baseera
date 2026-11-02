@@ -93,6 +93,14 @@ class Pipeline:
         df = pd.read_csv(path, dtype=str, keep_default_na=False)
         return self.run(df.to_dict("records"))
 
+    def run_one(self, raw: dict) -> tuple[bool, str | None]:
+        """Single record from a form: (ok, reason). Quarantined like any other row when it fails."""
+        run = self.run([raw])
+        if run.n_ok == 1:
+            return True, None
+        q = self.db.query(Quarantine).filter_by(pipeline=self.name).order_by(Quarantine.row_id.desc()).first()
+        return False, (q.reason if q else "rejected")
+
 
 def _jsonable(d: dict) -> dict:
     out = {}

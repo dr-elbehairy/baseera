@@ -76,6 +76,25 @@ action    = inspect (< 0.35) · service (0.35–0.70) · replace (≥ 0.70 or be
 ```
 Every parameter is in `.env` (`baseera/core/config.py`) to be calibrated from the survey and mentor sessions.
 
+## Admin panel — data in, results out
+
+Everything an operator needs without touching a terminal (role `admin`; `manager` and `supervisor` read-only):
+
+| Screen | What it does |
+|---|---|
+| **البيانات والمدخلات** | Upload CSV/Excel per source (cabinets → assets → weather → reports → work orders → observations), downloadable template, **dry-run preview** (rows accepted / quarantined with reasons, first 20 rows) before anything is written; single-record form; quarantine review with *fix & retry*; upload history |
+| **المعاملات** | Field-calibrated parameters (lead L per failure mode, crew capacity, alert threshold, cost model, promotion gates) stored in `sys_setting`, audited, applied live over the `.env` defaults |
+| **التشغيل والمهام** | Background jobs with progress: full recompute (features → train → plan → ledger), each step alone, one-year backtest, tagged simulation seed, purge (typed confirmation) |
+
+Design system: light, Arabic-first, one primary colour (teal) with amber/red reserved for risk — `apps/web/styles.css`, shared by the technician PWA.
+
+## Deploy (public demo)
+
+* **Railway** (recommended): `railway up` from the repo, or connect the GitHub repo in the Railway dashboard. `railway.json` builds the Dockerfile; set `BASEERA_AUTO_DEMO=true`, `BASEERA_ENV=staging`, a new `BASEERA_JWT_SECRET`, and attach a PostgreSQL plugin (`BASEERA_DATABASE_URL=${{Postgres.DATABASE_URL}}` rewritten to `postgresql+psycopg://`). On an empty database the platform seeds the tagged simulation itself at first start (~2–3 min, progress visible under التشغيل والمهام).
+* **Render**: `render.yaml` Blueprint (web service + managed PostgreSQL).
+* **Vercel** is not suitable for the backend (long-running training, persistent database, scheduled worker); it can only host a static front end pointed at one of the above.
+* **Production inside KSA**: `docker compose up --build` on a VM; see `docs/security.md`.
+
 ## Tests
 
 `make test` — ingestion (validation, spatial matching, quarantine, idempotency, PDPL hashing), no-leakage checks on features,
@@ -96,7 +115,10 @@ tests/              conftest (small simulation) · test_ingest · test_pipeline 
 docs/               adr/ · security.md · runbook.md
 ```
 
-## Status (v0.1.0, 2 Nov 2026)
+## Status (v0.2.0, 2 Nov 2026)
+
+* v0.2.0 — admin data panel (upload + preview + quarantine + manual records), runtime parameters, background jobs, new design system, Railway/Render deployment files; 25 tests.
+* v0.1.0 — five-layer prototype.
 
 Built and tested on simulated data. Field calibration (L, crew capacity, emergency multiplier, consequence cost) and the first
 real export are the next inputs; see `docs/runbook.md` for how to load them without touching code.

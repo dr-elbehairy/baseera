@@ -1,3 +1,3 @@
 {"name": "بصيرة — الفني", "short_name": "بصيرة", "start_url": "/field/", "scope": "/field/", "display": "standalone", "dir": "rtl", "lang": "ar",
- "background_color": "#17153a", "theme_color": "#17153a",
- "icons": [{"src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%2317153a'/><circle cx='32' cy='32' r='14' fill='none' stroke='%236fd3c7' stroke-width='5'/><circle cx='32' cy='32' r='5' fill='%23f2b84b'/></svg>", "sizes": "any", "type": "image/svg+xml"}]}
+ "background_color": "#0f5f6b", "theme_color": "#0f5f6b",
+ "icons": [{"src": "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230f5f6b'/><circle cx='32' cy='32' r='14' fill='none' stroke='white' stroke-width='5'/><circle cx='32' cy='32' r='5' fill='white'/></svg>", "sizes": "any", "type": "image/svg+xml"}]}

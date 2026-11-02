@@ -12,5 +12,9 @@
 | ADR-008 | Docker Compose first, same images to Kubernetes later | Kubernetes now | time to 18 Nov |
 | ADR-009 | Vanilla JS apps served by the API in v0.1; Next.js migration path kept open | Next.js now | zero build step for the hackathon; the API is the contract, the UI is replaceable |
 | ADR-010 | Live PFR@L counts only approved/done lists; backtest counts proposed lists | count every proposed list | a list nobody acted on is not a warning; the backtest has no supervisor |
+| ADR-011 | Field parameters are rows in `sys_setting` applied over `.env` defaults, audited per change | env-only | the field calibrates from a screen, not from a file; every change has a name on it |
+| ADR-012 | Long operations run as in-process background jobs recorded in `sys_job` (one at a time) | Celery/RQ | one container, no broker, progress visible; swap for a queue when more than one worker is needed |
+| ADR-013 | Uploads always go through a dry-run preview before commit; rejected rows are quarantined with the reason and can be fixed and retried | silent partial loads | the operator sees what will happen before it happens |
+| ADR-014 | Light, Arabic-first design system with a single primary colour; risk is the only use of amber/red | hackathon palette | an operational tool for a municipality, not a pitch deck |
 
 Changing the decision rule or the PFR@L definition requires a new ADR.

@@ -22,6 +22,7 @@ from datetime import date, timedelta
 
 from .core.config import get_settings
 from .core.db import create_all, session_scope
+from .core.params import apply_overrides
 from .core.security import seed_demo_users
 
 
@@ -37,6 +38,7 @@ def cmd_migrate(a):
     create_all()
     with session_scope() as db:
         n = seed_demo_users(db)
+        apply_overrides(db)
     print(f"schema ready; demo users created: {n}")
 
 
@@ -170,6 +172,10 @@ def main(argv=None):
     s = sp.add_parser("serve"); s.add_argument("--host", default="0.0.0.0"); s.add_argument("--port", type=int, default=8000); s.add_argument("--reload", action="store_true")
     s.set_defaults(f=cmd_serve)
     a = p.parse_args(argv)
+    if a.cmd != "migrate":
+        create_all()
+        with session_scope() as db:
+            apply_overrides(db)
     a.f(a)
 
 

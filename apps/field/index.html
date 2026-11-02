@@ -2,57 +2,59 @@
 <html lang="ar" dir="rtl">
 <head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#17153a"><link rel="manifest" href="/field/manifest.json">
-<title>بصيرة — الفني</title>
+<meta name="theme-color" content="#0f5f6b"><link rel="manifest" href="/field/manifest.json">
+<title>بصيرة — تطبيق الفني</title>
+<link rel="stylesheet" href="/static/styles.css">
 <style>
-:root{--bg:#17153a;--card:#232255;--line:#3b3a7a;--text:#f4f4ff;--muted:#a9abd1;--teal:#6fd3c7;--gold:#f2b84b;--red:#e5484d;--green:#2bb673}
-*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:17px/1.5 -apple-system,"Segoe UI",Tahoma,Arial,sans-serif;padding-bottom:40px}
-header{padding:12px 16px;background:#100f2b;display:flex;justify-content:space-between;align-items:center;position:sticky;top:0}
-header b{font-size:20px}#net{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--green);color:#042}#net.off{background:var(--gold);color:#321}
-main{padding:14px;max-width:560px;margin:0 auto}.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:12px}
-input,select,textarea{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:#100f2b;color:#fff;font-size:17px;margin:6px 0}
-button{width:100%;padding:14px;border:0;border-radius:12px;background:var(--teal);color:#062;font-size:18px;font-weight:800;margin-top:8px}button.sec{background:#2a2960;color:#fff;border:1px solid var(--line)}button.sm{width:auto;padding:8px 14px;font-size:14px;margin:4px}
-.muted{color:var(--muted);font-size:14px}.big{font-size:28px;font-weight:800;color:var(--gold)}.pill{display:inline-block;background:#2a2960;border-radius:999px;padding:3px 12px;font-size:13px;margin:2px}
-.sym{display:grid;grid-template-columns:1fr 1fr;gap:8px}.sym button{margin:0;background:#2a2960;color:#fff;border:1px solid var(--line);font-size:16px;padding:14px 6px}.sym button.on{background:var(--gold);color:#321}
-.sev{display:flex;gap:8px}.sev button{background:#2a2960;color:#fff;border:1px solid var(--line)}.sev button.on{background:var(--red)}
-ul{padding-inline-start:18px;margin:4px 0;color:var(--muted);font-size:14px}.task{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:8px 0}
-video{width:100%;border-radius:12px;background:#000}#toast{position:fixed;bottom:16px;left:16px;right:16px;background:var(--green);color:#042;padding:12px;border-radius:12px;text-align:center;display:none;font-weight:700}
+body{font-size:16px;padding-bottom:40px;background:var(--bg)}
+header{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;position:sticky;top:0;z-index:5}
+header .logo{border:0;padding:0;margin:0}
+main{padding:14px;max-width:560px;margin:0 auto}.card{margin-bottom:12px}
+input,select,textarea{padding:12px;font-size:16px;margin:4px 0}
+.btn{width:100%;justify-content:center;padding:13px;font-size:16px;margin-top:8px}
+.big{font-size:26px;font-weight:600;color:var(--primary)}
+.sym{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin:6px 0}.sym button{margin:0;background:#fff;color:var(--text);border:1px solid var(--line2);border-radius:8px;font-size:15px;padding:13px 6px;cursor:pointer}.sym button.on{background:var(--primary);color:#fff;border-color:var(--primary)}
+.sev{display:flex;gap:8px;margin:6px 0}.sev button{flex:1;background:#fff;color:var(--text);border:1px solid var(--line2);border-radius:8px;padding:10px;cursor:pointer}.sev button.on{background:var(--warn-soft);border-color:var(--warn);color:#6b4a10}.sev button[data-s="3"].on{background:var(--bad-soft);border-color:var(--bad);color:var(--bad)}
+.task{display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--line);padding:9px 0;gap:8px}.task .btn{width:auto;margin:0;padding:6px 12px;font-size:13px}
+video{width:100%;border-radius:10px;background:#000;margin:6px 0}
+#net.badge{font-size:12px}
+h3{margin:4px 0 6px}
 </style>
 </head>
 <body>
-<header><b>◉ بصيرة · الفني</b><span id="net">متصل</span></header>
+<header><div class="logo"><div class="mark">◉</div><div><b>بصيرة</b><small>تطبيق الفني</small></div></div><span id="net" class="badge ok">متصل</span></header>
 <main>
   <section id="login" class="card"><h3>تسجيل الدخول</h3>
-    <form id="loginForm"><input name="username" value="technician" placeholder="اسم المستخدم"><input name="password" type="password" value="demo" placeholder="كلمة المرور"><button>دخول</button></form></section>
+    <form id="loginForm"><label>اسم المستخدم</label><input name="username" value="technician"><label>كلمة المرور</label><input name="password" type="password" value="demo"><button class="btn">دخول</button></form>
+    <p class="muted small">يعمل التطبيق دون اتصال؛ تُرسل السجلات تلقائيًا عند عودة الشبكة.</p></section>
 
   <div id="app" hidden>
     <section class="card" id="scan">
       <h3>امسح رمز الأصل</h3>
       <video id="video" playsinline hidden></video>
-      <button id="startScan">فتح الكاميرا</button>
+      <button id="startScan" class="btn">فتح الكاميرا</button>
       <input id="codeInput" placeholder="أو اكتب الرمز: LP-10001" inputmode="text" autocapitalize="characters">
-      <button class="sec" id="lookup">عرض الأصل</button>
-      <p class="muted" id="queueInfo"></p>
+      <button class="btn ghost" id="lookup">عرض الأصل</button>
+      <p class="muted small" id="queueInfo"></p>
     </section>
 
     <section class="card" id="asset" hidden>
-      <div class="big" id="aCode"></div><div class="muted" id="aMeta"></div>
+      <div class="big" id="aCode"></div><div class="text2 small" id="aMeta"></div>
       <div id="aTask"></div>
-      <h3>ما الذي تلاحظه؟ <span class="muted">(أقل من 20 ثانية)</span></h3>
+      <h3 style="margin-top:12px">ما الذي تلاحظه؟ <span class="muted small">(أقل من 20 ثانية)</span></h3>
       <div class="sym" id="symptoms"></div>
-      <h3>الشدة</h3><div class="sev"><button data-s="1" class="on">1 خفيفة</button><button data-s="2">2 واضحة</button><button data-s="3">3 شديدة</button></div>
+      <h4>الشدة</h4><div class="sev"><button data-s="1" class="on">1 خفيفة</button><button data-s="2">2 واضحة</button><button data-s="3">3 شديدة</button></div>
       <textarea id="note" rows="2" placeholder="ملاحظة اختيارية"></textarea>
-      <button id="sendObs">تسجيل العلامة</button>
-      <div id="outcomeBox" hidden><h3>إغلاق الزيارة</h3>
+      <button id="sendObs" class="btn">تسجيل العلامة</button>
+      <div id="outcomeBox" hidden style="margin-top:14px;border-top:1px solid var(--line);padding-top:10px"><h3>إغلاق الزيارة</h3>
         <select id="finding"><option value="confirmed_degradation">تدهور مؤكد وعولج</option><option value="no_issue">لا مشكلة</option><option value="already_failed">كان معطلًا فعلًا</option><option value="inaccessible">تعذّر الوصول</option></select>
         <input id="actionTaken" placeholder="ما الذي نُفّذ؟ (مثال: استبدال المشغّل)"><input id="cost" type="number" inputmode="decimal" placeholder="التكلفة (ر.س) اختياري">
-        <button class="sec" id="sendOutcome">إغلاق الزيارة</button></div>
+        <button class="btn ghost" id="sendOutcome">إغلاق الزيارة</button></div>
     </section>
 
-    <section class="card"><h3>مهامي هذا الأسبوع</h3><div id="tasks" class="muted">—</div></section>
+    <section class="card"><div class="hd"><h3>مهامي هذا الأسبوع</h3><button id="logout" class="btn ghost sm" style="width:auto;margin:0">خروج</button></div><div id="tasks" class="muted">—</div></section>
   </div>
 </main>
-<div id="toast"></div>
 <script src="/field/app.js"></script>
 </body>
 </html>

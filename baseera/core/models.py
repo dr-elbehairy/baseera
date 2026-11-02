@@ -271,3 +271,31 @@ class AuditLog(Base):
     entity_id: Mapped[str | None] = mapped_column(String(64))
     before: Mapped[dict | None] = mapped_column(JSON)
     after: Mapped[dict | None] = mapped_column(JSON)
+
+
+# ----------------------------------------------------------------------------- platform (settings overrides, background jobs)
+class Setting(Base):
+    """Field-calibrated parameter overrides. The .env value is the default; a row here wins. Every change is audited."""
+    __tablename__ = "sys_setting"
+    key: Mapped[str] = mapped_column(String(64), primary_key=True)
+    value: Mapped[dict] = mapped_column(JSON)           # {"v": <value>}
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=_now, onupdate=_now)
+    updated_by: Mapped[str | None] = mapped_column(String(64))
+
+
+class Job(Base):
+    """A background operation (recompute, training, backtest, simulation seed) with live progress for the UI."""
+    __tablename__ = "sys_job"
+    job_id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
+    kind: Mapped[str] = mapped_column(String(32), index=True)
+    status: Mapped[str] = mapped_column(String(16), default="queued", index=True)  # queued | running | done | failed
+    progress: Mapped[int] = mapped_column(Integer, default=0)
+    step: Mapped[str | None] = mapped_column(String(256))
+    log: Mapped[list] = mapped_column(JSON, default=list)
+    params: Mapped[dict | None] = mapped_column(JSON)
+    result: Mapped[dict | None] = mapped_column(JSON)
+    error: Mapped[str | None] = mapped_column(Text)
+    created_by: Mapped[str | None] = mapped_column(String(64))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime)

@@ -5,11 +5,11 @@ let TOKEN = localStorage.getItem("baseera.ftoken"), ASSET = null, SYM = null, SE
 const QKEY = "baseera.queue";
 const queue = () => JSON.parse(localStorage.getItem(QKEY) || "[]");
 const saveQueue = (q) => { localStorage.setItem(QKEY, JSON.stringify(q)); $("#queueInfo").textContent = q.length ? `${q.length} سجلات بانتظار الاتصال` : ""; };
-const toast = (m, bad) => { const t = $("#toast"); t.textContent = m; t.style.background = bad ? "#e5484d" : "#2bb673"; t.style.display = "block"; setTimeout(() => (t.style.display = "none"), 2200); };
+const toast = (m, bad) => { const t = document.createElement("div"); t.className = "toast " + (bad ? "bad" : "ok"); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2400); };
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(16).slice(2));
 
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("/field/sw.js");
-const setNet = () => { const on = navigator.onLine; $("#net").textContent = on ? "متصل" : "دون اتصال"; $("#net").className = on ? "" : "off"; if (on) sync(); };
+const setNet = () => { const on = navigator.onLine; $("#net").textContent = on ? "متصل" : "دون اتصال"; $("#net").className = "badge " + (on ? "ok" : "warn"); if (on) sync(); };
 window.addEventListener("online", setNet); window.addEventListener("offline", setNet);
 
 async function api(path, opt = {}) {
@@ -18,6 +18,7 @@ async function api(path, opt = {}) {
   if (!r.ok) throw new Error((await r.json().catch(() => ({}))).detail || r.statusText);
   return r.json();
 }
+$("#logout").onclick = () => { localStorage.removeItem("baseera.ftoken"); TOKEN = null; $("#app").hidden = true; $("#login").hidden = false; };
 $("#loginForm").addEventListener("submit", async (e) => {
   e.preventDefault();
   const r = await fetch(API + "/auth/login", { method: "POST", body: new URLSearchParams(new FormData(e.target)) });
@@ -50,7 +51,7 @@ async function lookup(code) {
   try { ASSET = await api("/field/assets/" + encodeURIComponent(code.trim())); } catch (e) { return toast(e.message, true); }
   $("#asset").hidden = false; $("#aCode").textContent = ASSET.code;
   $("#aMeta").textContent = `${ASSET.type} · ${ASSET.street === "main" ? "شارع رئيسي" : "شارع فرعي"} · خزانة ${ASSET.cabinet || "—"} · احتمال العطل ${ASSET.p == null ? "—" : Math.round(ASSET.p * 100) + "%"}`;
-  $("#aTask").innerHTML = ASSET.task ? `<p><span class="pill">مهمة الأسبوع: ${ASSET.task.action_ar}</span> <span class="pill">${ASSET.task.status}</span></p><p class="muted">${ASSET.task.reason || ""}</p>` : `<p class="muted">ليس في قائمة الأسبوع · ${ASSET.last_symptom ? "آخر علامة: " + ASSET.last_symptom.ar + " (" + ASSET.last_symptom.at.slice(0, 10) + ")" : "لا علامات سابقة"}</p>`;
+  $("#aTask").innerHTML = ASSET.task ? `<p><span class="badge info">مهمة الأسبوع: ${ASSET.task.action_ar}</span> <span class="badge">${ASSET.task.status}</span></p><p class="muted">${ASSET.task.reason || ""}</p>` : `<p class="muted">ليس في قائمة الأسبوع · ${ASSET.last_symptom ? "آخر علامة: " + ASSET.last_symptom.ar + " (" + ASSET.last_symptom.at.slice(0, 10) + ")" : "لا علامات سابقة"}</p>`;
   $("#outcomeBox").hidden = !(ASSET.task && ASSET.task.status !== "done");
   window.scrollTo({ top: $("#asset").offsetTop - 60, behavior: "smooth" });
 }
@@ -79,6 +80,6 @@ async function sync() {
 }
 async function loadTasks() {
   try { const t = await api("/field/tasks"); localStorage.setItem("baseera.tasks", JSON.stringify(t)); render(t); } catch { render(JSON.parse(localStorage.getItem("baseera.tasks") || "[]")); }
-  function render(t) { $("#tasks").innerHTML = t.length ? t.map((x) => `<div class="task"><span>#${x.rank} <b>${x.code}</b> · ${x.action_ar}</span><button class="sm" onclick="lookup('${x.code}')">فتح</button></div>`).join("") : "لا مهام معتمدة بعد"; }
+  function render(t) { $("#tasks").innerHTML = t.length ? t.map((x) => `<div class="task"><span>#${x.rank} <b>${x.code}</b> · ${x.action_ar}</span><button class="btn ghost sm" onclick="lookup('${x.code}')">فتح</button></div>`).join("") : "لا مهام معتمدة بعد"; }
 }
 if (TOKEN) boot();

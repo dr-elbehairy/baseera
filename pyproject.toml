@@ -1,6 +1,6 @@
 [project]
 name = "baseera"
-version = "0.1.0"
+version = "0.2.0"
 description = "Baseera — predictability ledger and weekly list for predictive maintenance of urban assets (IECE Hackathon 2026, team T-0848)"
 requires-python = ">=3.11"
 readme = "README.md"

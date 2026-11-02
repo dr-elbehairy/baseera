@@ -1,0 +1,19 @@
+# Alternative to Railway: one-click Blueprint on Render (web service + managed PostgreSQL).
+services:
+  - type: web
+    name: baseera
+    runtime: docker
+    plan: starter
+    healthCheckPath: /api/health
+    envVars:
+      - key: BASEERA_ENV
+        value: staging
+      - key: BASEERA_AUTO_DEMO
+        value: "true"
+      - key: BASEERA_JWT_SECRET
+        generateValue: true
+      - key: BASEERA_DATABASE_URL
+        fromDatabase: { name: baseera-db, property: connectionString }
+databases:
+  - name: baseera-db
+    plan: basic-256mb

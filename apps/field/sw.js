@@ -1,6 +1,6 @@
 /* App-shell cache so the technician PWA opens without network; API calls are never cached (data is queued by app.js). */
-const CACHE = "baseera-field-v1";
-const SHELL = ["/field/", "/field/index.html", "/field/app.js", "/field/manifest.json"];
+const CACHE = "baseera-field-v2";
+const SHELL = ["/field/", "/field/index.html", "/field/app.js", "/field/manifest.json", "/static/styles.css"];
 self.addEventListener("install", (e) => e.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting())));
 self.addEventListener("activate", (e) => e.waitUntil(caches.keys().then((ks) => Promise.all(ks.filter((k) => k !== CACHE).map((k) => caches.delete(k)))).then(() => self.clients.claim())));
 self.addEventListener("fetch", (e) => {

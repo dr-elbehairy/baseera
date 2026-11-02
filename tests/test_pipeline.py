@@ -70,8 +70,8 @@ def test_pfr_lead_logic():
 
 def test_weekly_list_persisted_with_reasons(pipeline_ready):
     with session_scope() as db:
-        wl = db.get(WeeklyList, pipeline_ready["list_id"])
-        assert wl.week_start == AS_OF and wl.status in ("proposed", "approved")  # test_api may have approved it first
+        wl = db.query(WeeklyList).filter_by(week_start=AS_OF, run_tag="live").first()  # other tests may have re-planned or approved it
+        assert wl is not None and wl.status in ("proposed", "approved")
         assert 0 < len(wl.items) <= wl.capacity
         for i in wl.items:
             assert i.reason and i.action in ("inspect", "service", "replace") and i.p_fail >= get_settings().alert_probability

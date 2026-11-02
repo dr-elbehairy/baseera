@@ -3,67 +3,184 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>بصيرة — المشرف</title>
+<title>بصيرة — منصة الصيانة التنبؤية</title>
 <link rel="stylesheet" href="/static/styles.css">
+<link rel="icon" href="data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230f5f6b'/><circle cx='32' cy='32' r='14' fill='none' stroke='white' stroke-width='5'/><circle cx='32' cy='32' r='5' fill='white'/></svg>">
 </head>
 <body>
-<header class="top">
-  <div class="brand"><span class="eye">◉</span> بصيرة <small>الصيانة التنبؤية للأصول الحضرية</small></div>
-  <nav id="nav">
-    <a href="#week" class="active">قائمة الأسبوع</a><a href="#map">الخريطة</a><a href="#ledger">السجل</a><a href="#backtest">الاختبار الرجعي</a><a href="#method">المنهجية</a>
-  </nav>
-  <div class="user"><span id="who"></span> <button id="logout" class="ghost">خروج</button></div>
-</header>
 
-<section id="login" class="card login">
-  <h2>تسجيل الدخول</h2>
-  <form id="loginForm"><input name="username" placeholder="اسم المستخدم" value="supervisor" autocomplete="username"><input name="password" type="password" placeholder="كلمة المرور" value="demo" autocomplete="current-password"><button>دخول</button></form>
-  <p class="muted">حسابات العرض: supervisor · manager · admin (كلمة المرور demo)</p>
-</section>
+<div id="login" class="login-wrap">
+  <div class="card login">
+    <div class="logo"><div class="mark">◉</div><div><b>بصيرة</b><small>منصة الصيانة التنبؤية للأصول الحضرية</small></div></div>
+    <form id="loginForm">
+      <div><label>اسم المستخدم</label><input name="username" value="supervisor" autocomplete="username"></div>
+      <div><label>كلمة المرور</label><input name="password" type="password" value="demo" autocomplete="current-password"></div>
+      <button class="btn">دخول</button>
+    </form>
+    <p class="muted small" id="demoHint">حسابات العرض: supervisor · manager · admin · technician — كلمة المرور demo</p>
+  </div>
+</div>
 
-<main id="app" hidden>
-  <div class="kpis" id="kpis"></div>
+<div id="app" class="shell" hidden>
+  <aside class="side">
+    <div class="logo"><div class="mark">◉</div><div><b>بصيرة</b><small>الصيانة التنبؤية للأصول الحضرية</small></div></div>
+    <nav id="nav">
+      <div class="sec">التشغيل</div>
+      <a href="#home" data-roles="admin,manager,supervisor,technician"><i>▦</i> لوحة المتابعة</a>
+      <a href="#week" data-roles="admin,manager,supervisor,technician"><i>☰</i> قائمة الأسبوع</a>
+      <a href="#map" data-roles="admin,manager,supervisor,technician"><i>◎</i> خريطة الخطر</a>
+      <div class="sec">القياس</div>
+      <a href="#ledger" data-roles="admin,manager,supervisor"><i>▤</i> سجل قابلية التنبؤ</a>
+      <a href="#backtest" data-roles="admin,manager,supervisor,technician"><i>▥</i> الاختبار الرجعي</a>
+      <div class="sec" data-roles="admin,manager,supervisor">الإدارة</div>
+      <a href="#data" data-roles="admin,manager,supervisor"><i>⇪</i> البيانات والمدخلات</a>
+      <a href="#params" data-roles="admin,manager,supervisor"><i>⚙</i> المعاملات</a>
+      <a href="#ops" data-roles="admin,manager"><i>▶</i> التشغيل والمهام</a>
+      <div class="sec">مرجع</div>
+      <a href="#method"><i>?</i> المنهجية</a>
+      <a href="/field" target="_blank"><i>▭</i> تطبيق الفني</a>
+      <a href="/api/docs" target="_blank"><i>{}</i> واجهة البرمجة</a>
+    </nav>
+    <div class="me"><span id="who"></span><button id="logout" class="btn ghost sm">خروج</button></div>
+  </aside>
 
-  <section id="v-week" class="view">
-    <div class="row between"><h2>قائمة الأسبوع <span id="weekDate" class="muted"></span></h2>
-      <div><span id="capacity" class="pill"></span> <button id="approveAll">اعتماد الكل</button></div></div>
-    <table class="list" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table>
-  </section>
+  <main class="content">
+    <div class="topbar"><div><h1 id="title">لوحة المتابعة</h1><div class="crumbs" id="crumbs"></div></div><div class="row" id="topRight"></div></div>
 
-  <section id="v-map" class="view" hidden>
-    <div class="row between"><h2>خريطة الخطر</h2><div class="legend"><i style="background:#2bb673"></i>منخفض <i style="background:#f2b84b"></i>متوسط <i style="background:#e5484d"></i>مرتفع <i class="sq"></i>خزانة <b>◆</b> في القائمة</div></div>
-    <div class="maprow"><canvas id="map" width="1100" height="760"></canvas><aside id="detail" class="card"><p class="muted">انقر على أصل لعرض بطاقته</p></aside></div>
-  </section>
+    <!-- ============================== home -->
+    <section id="v-home" class="view">
+      <div class="kpis" id="homeKpis"></div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h3>حالة البيانات</h3><a href="#data" class="small">إدارة المدخلات</a></div><div id="homeData"></div></div>
+        <div class="card"><div class="hd"><h3>النموذج والقائمة</h3><a href="#ops" class="small">التشغيل</a></div><div id="homeModel"></div></div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>دورة العمل الأسبوعية</h3></div>
+        <ol class="steps" id="homeSteps"><li>1 · استيعاب البيانات</li><li>2 · الخصائص والتدريب</li><li>3 · قائمة الأسبوع</li><li>4 · الاعتماد والتنفيذ</li><li>5 · السجل والتعلم</li></ol>
+        <p class="text2 small">كل خطوة تقرأ من قاعدة البيانات وتكتب فيها؛ لا رقم في هذه المنصة مكتوب يدويًا. البيانات الموسومة <span class="badge sim">محاكاة</span> تمر بنفس خطوط الاستيعاب التي تمر بها بيانات الجهة.</p>
+      </div>
+    </section>
 
-  <section id="v-ledger" class="view" hidden>
-    <h2>سجل قابلية التنبؤ (التشغيل الحي)</h2>
-    <p class="muted">PFR@L = نسبة الأعطال التي كان أصلها في قائمة أسبوع معتمدة قبل العطل بالمهلة اللازمة L. تُحسب بوظيفة واحدة في الاختبار الرجعي والتشغيل.</p>
-    <div id="ledgerChart" class="chart"></div>
-    <table class="list" id="ledgerTable"><thead><tr><th>الشهر</th><th>الأعطال</th><th>PFR@2</th><th>PFR@7</th><th>PFR@14</th><th>PFR@L الخاصة</th><th>نسبة الطارئ</th><th>أيام الانطفاء</th><th>التقاط الأعراض</th></tr></thead><tbody></tbody></table>
-    <div id="drift" class="callout"></div>
-    <h3>إصدارات النموذج</h3><table class="list" id="modelsTable"><thead><tr><th>الإصدار</th><th>التاريخ</th><th>AUC</th><th>Brier</th><th>PFR@L تحقق</th><th>قاعدة العمر</th><th>البوابات</th><th>معتمد</th></tr></thead><tbody></tbody></table>
-  </section>
+    <!-- ============================== week -->
+    <section id="v-week" class="view" hidden>
+      <div class="kpis" id="kpis"></div>
+      <div class="card"><div class="hd"><div class="row"><h3>قائمة الأسبوع <span id="weekDate" class="muted"></span></h3><span id="capacity" class="badge"></span></div>
+        <button id="approveAll" class="btn">اعتماد كل البنود</button></div>
+        <div class="scroll"><table class="tbl" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
 
-  <section id="v-backtest" class="view" hidden>
-    <h2>الاختبار الرجعي <span class="tag" id="btSource"></span></h2>
-    <div class="kpis" id="btKpis"></div>
-    <div class="row"><div class="chart half" id="btBars"></div><div class="chart half" id="btSeries"></div></div>
-    <h3>بحسب نمط العطل</h3>
-    <table class="list" id="btModes"><thead><tr><th>النمط</th><th>الصنف</th><th>العدد</th><th>L (يوم)</th><th>PFR@L</th><th>PFR@7</th><th>وسيط المهلة</th></tr></thead><tbody></tbody></table>
-  </section>
+    <!-- ============================== map -->
+    <section id="v-map" class="view" hidden>
+      <div class="row between" style="margin-bottom:10px"><div class="legend"><i style="background:#1f8a5b"></i>منخفض <i style="background:#b7791f"></i>متوسط <i style="background:#c0392b"></i>مرتفع <i class="sq"></i>خزانة · <b>◇</b> في قائمة الأسبوع</div></div>
+      <div class="maprow"><canvas id="map" width="1100" height="760"></canvas><aside id="detail" class="card"><p class="muted">انقر على أصل لعرض بطاقته والتفسير.</p></aside></div>
+    </section>
 
-  <section id="v-method" class="view" hidden>
-    <h2>المنهجية في صفحة واحدة</h2>
-    <div class="grid2">
-      <div class="card"><h3>1 · ما نقيسه</h3><p><b>PFR@L</b>: نسبة الأعطال المؤكدة التي سبقها إنذار بمهلة ≥ L يومًا (L لكل نمط عطل). مقارنة ثابتة: قاعدة العمر بنفس طاقة الطاقم، و«اليوم» = 0%.</p></div>
-      <div class="card"><h3>2 · ما نتنبأ به</h3><p>احتمال العطل خلال 14 يومًا لكل أصل، من: العمر والنوع، سجل الأعطال، العلامات المسجّلة (QR/جولة/مواطن)، انقطاعات الدائرة، الطقس. تدريب زمني ومعايرة isotonic وبوابات قبول قبل أي إصدار.</p></div>
-      <div class="card"><h3>3 · كيف نقرر</h3><p>الخطر = الاحتمال × (علاوة الطارئ + كلفة العواقب). الأولوية = الخطر ÷ كلفة التدخل. قائمة بطاقة الطاقم؛ الأصول الحرجة لا تنزل تحت «فحص». المشرف يملك التجاوز بسبب مسجّل.</p></div>
-      <div class="card"><h3>4 · كيف نتعلم</h3><p>نتيجة كل زيارة وكل علامة وكل عطل مؤكد تعود إلى قاعدة البيانات؛ السجل الشهري يحسب المؤشر ويطلق إعادة التدريب عند الانجراف.</p></div>
-    </div>
-    <p class="muted">الأرقام في هذه الواجهة تُقرأ كلها من قاعدة البيانات أو من ملف الاختبار الرجعي؛ لا رقم مكتوب يدويًا. بيانات المحاكاة موسومة «simulated» في كل صف.</p>
-  </section>
-</main>
-<footer class="foot">بصيرة Baseera · الهاكاثون الهندسي 2026 · المسار الأول / التحدي الأول · فريق T-0848</footer>
+    <!-- ============================== ledger -->
+    <section id="v-ledger" class="view" hidden>
+      <p class="text2">PFR@L = نسبة الأعطال المؤكدة التي كان أصلها في قائمة أسبوع <b>معتمدة</b> قبل العطل بالمهلة اللازمة L. تُحسب بالوظيفة نفسها في الاختبار الرجعي والتشغيل الحي.</p>
+      <div id="ledgerChart" class="chart"></div>
+      <div class="card" style="margin-top:14px"><table class="tbl" id="ledgerTable"><thead><tr><th>الشهر</th><th>الأعطال</th><th>PFR@2</th><th>PFR@7</th><th>PFR@14</th><th>PFR@L الخاصة</th><th>نسبة الطارئ</th><th>أيام الانطفاء</th><th>التقاط الأعراض</th></tr></thead><tbody></tbody></table></div>
+      <div id="drift" class="callout"></div>
+      <div class="card"><div class="hd"><h3>إصدارات النموذج</h3></div><table class="tbl" id="modelsTable"><thead><tr><th>الإصدار</th><th>التاريخ</th><th>AUC</th><th>Brier</th><th>PFR@L تحقق</th><th>قاعدة العمر</th><th>البوابات</th><th>معتمد</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- ============================== backtest -->
+    <section id="v-backtest" class="view" hidden>
+      <div class="kpis" id="btKpis"></div>
+      <div class="row"><div class="chart half" id="btBars"></div><div class="chart half" id="btSeries"></div></div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>بحسب نمط العطل</h3></div><table class="tbl" id="btModes"><thead><tr><th>النمط</th><th>الصنف</th><th>العدد</th><th>L (يوم)</th><th>PFR@L</th><th>PFR@7</th><th>وسيط المهلة</th></tr></thead><tbody></tbody></table></div>
+    </section>
+
+    <!-- ============================== data panel -->
+    <section id="v-data" class="view" hidden>
+      <div class="tabs" id="dataTabs"><button data-t="upload" class="on">رفع ملف</button><button data-t="manual">إدخال سجل</button><button data-t="quarantine">الحجر الصحي <span id="qCount" class="badge"></span></button><button data-t="runs">سجل الرفع</button></div>
+
+      <div id="d-upload">
+        <ol class="steps" id="upSteps"><li class="on">1 · اختر نوع البيانات</li><li>2 · ارفع الملف</li><li>3 · راجع المعاينة</li><li>4 · اعتمد الإدخال</li></ol>
+        <div class="pipes" id="pipes"></div>
+        <div class="grid g2" style="margin-top:14px">
+          <div class="card"><div class="hd"><h3 id="upTitle">الملف</h3><span id="upHelp" class="small text2"></span></div>
+            <div class="drop" id="drop">اسحب ملف CSV أو Excel هنا أو انقر للاختيار<br><small class="muted">الأعمدة بأسمائها الإنجليزية كما في القالب؛ الترميز UTF-8</small></div>
+            <input type="file" id="file" accept=".csv,.xlsx,.xls,.txt" hidden>
+            <div class="row" style="margin-top:10px"><a id="tplLink" class="btn ghost sm" href="#" download>تنزيل القالب</a><label class="row" style="margin:0;gap:6px"><span>المصدر</span><select id="source" style="width:150px"><option value="municipal">الجهة (ميداني)</option><option value="contractor">المقاول</option><option value="simulated">محاكاة</option></select></label></div>
+            <div id="fields" class="small" style="margin-top:10px"></div>
+          </div>
+          <div class="card" id="previewCard"><div class="hd"><h3>المعاينة</h3><span id="pvBadge"></span></div>
+            <div id="preview" class="empty">ارفع ملفًا لتظهر المعاينة: عدد السطور، ما سيُقبل، وما سيُحجر وسببه.</div>
+            <div class="row" style="margin-top:12px"><button id="commit" class="btn" disabled>اعتماد الإدخال إلى قاعدة البيانات</button><span id="commitMsg" class="small text2"></span></div>
+          </div>
+        </div>
+        <div class="card" id="sampleCard" hidden style="margin-top:14px"><div class="hd"><h3>أول 20 سطرًا</h3></div><div class="scroll" id="sample"></div></div>
+      </div>
+
+      <div id="d-manual" hidden>
+        <div class="card"><div class="hd"><h3>إدخال سجل واحد</h3><select id="manualPipe" style="width:260px"></select></div>
+          <p class="text2 small" id="manualHelp"></p>
+          <form id="manualForm" class="form-grid"></form>
+          <div class="row" style="margin-top:12px"><button id="manualSave" class="btn">حفظ السجل</button><span id="manualMsg" class="small"></span></div>
+        </div>
+      </div>
+
+      <div id="d-quarantine" hidden>
+        <div class="card"><div class="hd"><h3>سطور محجورة بسبب مكتوب</h3><div class="row"><select id="qPipe" style="width:200px"><option value="">كل الخطوط</option></select><button id="qReload" class="btn ghost sm">تحديث</button></div></div>
+          <p class="text2 small">كل سطر رفضه خط الاستيعاب يبقى هنا مع سببه. يمكن تصحيحه وإعادة إدخاله، أو إغلاقه بملاحظة.</p>
+          <div class="scroll"><table class="tbl" id="qTable"><thead><tr><th>#</th><th>الخط</th><th>السبب</th><th>السطر</th><th>الوقت</th><th></th></tr></thead><tbody></tbody></table></div>
+        </div>
+      </div>
+
+      <div id="d-runs" hidden>
+        <div class="card"><div class="hd"><h3>سجل عمليات الرفع</h3></div><table class="tbl" id="runsTable"><thead><tr><th>الوقت</th><th>الخط</th><th>الوارد</th><th>المقبول</th><th>المحجور</th></tr></thead><tbody></tbody></table></div>
+      </div>
+    </section>
+
+    <!-- ============================== params -->
+    <section id="v-params" class="view" hidden>
+      <div class="callout">هذه المعاملات هي ما تعايره الجهة من الميدان: المهلة التي يحتاجها الطاقم، طاقته الأسبوعية، تكاليفه. كل تغيير يُسجَّل باسم من غيّره، ويؤثر في القائمة القادمة عند إعادة الحساب.</div>
+      <div id="paramGroups"></div>
+      <div class="row" style="margin-top:14px"><button id="paramsSave" class="btn">حفظ التغييرات</button><button id="paramsReset" class="btn ghost">إعادة الافتراضيات</button><span id="paramsMsg" class="small"></span></div>
+    </section>
+
+    <!-- ============================== ops -->
+    <section id="v-ops" class="view" hidden>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h3>تشغيل الدورة</h3></div>
+          <p class="text2 small">تاريخ «as-of» يحدد آخر يوم تُعتبر بياناته معروفة؛ تُبنى القائمة لأحد ذلك الأسبوع.</p>
+          <div class="row"><label style="margin:0">as-of <input type="date" id="asOf" style="width:170px"></label></div>
+          <div class="row" style="margin-top:10px">
+            <button class="btn" data-job="recompute">إعادة الحساب الكاملة</button>
+            <button class="btn ghost" data-job="features">الخصائص</button><button class="btn ghost" data-job="train">التدريب</button><button class="btn ghost" data-job="plan">قائمة الأسبوع</button><button class="btn ghost" data-job="ledger">السجل</button><button class="btn ghost" data-job="backtest">الاختبار الرجعي (سنة)</button>
+          </div>
+        </div>
+        <div class="card"><div class="hd"><h3>المحاكاة والبيانات</h3><span class="badge sim">مصدر موسوم</span></div>
+          <p class="text2 small">لبدء منصة فارغة بمحاكاة فيزيائية موسومة «simulated»، أو لمسح كل البيانات التشغيلية قبل تحميل بيانات الجهة.</p>
+          <div class="row"><label style="margin:0">أعمدة <input type="number" id="simPoles" value="1200" style="width:100px"></label><label style="margin:0">خزانات <input type="number" id="simCab" value="24" style="width:90px"></label></div>
+          <div class="row" style="margin-top:10px"><button class="btn ghost" data-job="seed_sim">توليد محاكاة وإعادة الحساب</button><button class="btn danger" id="purge">مسح البيانات التشغيلية</button></div>
+        </div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>المهمة الجارية / الأخيرة</h3><span id="jobBadge" class="badge"></span></div>
+        <div class="prog"><i id="jobBar" style="width:0"></i></div><p id="jobStep" class="small text2" style="margin-top:6px"></p>
+        <div class="log" id="jobLog"></div>
+        <div id="jobResult" class="small" style="margin-top:8px"></div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>سجل المهام</h3></div><table class="tbl" id="jobsTable"><thead><tr><th>الوقت</th><th>النوع</th><th>بواسطة</th><th>الحالة</th><th>النتيجة</th></tr></thead><tbody></tbody></table></div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>سجل التدقيق</h3></div><div class="scroll"><table class="tbl" id="auditTable"><thead><tr><th>الوقت</th><th>المستخدم</th><th>الإجراء</th><th>الكيان</th><th>التفاصيل</th></tr></thead><tbody></tbody></table></div></div>
+    </section>
+
+    <!-- ============================== method -->
+    <section id="v-method" class="view" hidden>
+      <div class="grid g2">
+        <div class="card"><h3>1 · ما نقيسه</h3><p><b>PFR@L</b>: نسبة الأعطال المؤكدة التي سبقها إنذار بمهلة ≥ L يومًا (L لكل نمط عطل). مقارنة ثابتة: قاعدة العمر بنفس طاقة الطاقم، و«اليوم» = 0%.</p></div>
+        <div class="card"><h3>2 · ما نتنبأ به</h3><p>احتمال العطل خلال 14 يومًا لكل أصل، من: العمر والنوع، سجل الأعطال، العلامات المسجّلة (QR/جولة/مواطن)، انقطاعات الدائرة، الطقس. تدريب زمني ومعايرة isotonic وبوابات قبول قبل أي إصدار.</p></div>
+        <div class="card"><h3>3 · كيف نقرر</h3><p>الخطر = الاحتمال × (علاوة الطارئ + كلفة العواقب). الأولوية = الخطر ÷ كلفة التدخل. قائمة بطاقة الطاقم؛ الأصول الحرجة لا تنزل تحت «فحص». المشرف يملك التجاوز بسبب مسجّل.</p></div>
+        <div class="card"><h3>4 · كيف نتعلم</h3><p>نتيجة كل زيارة وكل علامة وكل عطل مؤكد تعود إلى قاعدة البيانات؛ السجل الشهري يحسب المؤشر ويطلق إعادة التدريب عند الانجراف.</p></div>
+      </div>
+      <p class="muted small" style="margin-top:12px">الأرقام في هذه الواجهة تُقرأ كلها من قاعدة البيانات أو من ملف الاختبار الرجعي. بيانات المحاكاة موسومة «simulated» في كل صف.</p>
+    </section>
+
+    <div class="foot">بصيرة Baseera · منصة الصيانة التنبؤية للأصول الحضرية · <span id="envTag"></span></div>
+  </main>
+</div>
+<div id="modalRoot"></div>
 <script src="/static/app.js"></script>
 </body>
 </html>
