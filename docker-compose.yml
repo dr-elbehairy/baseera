@@ -1,0 +1,37 @@
+# Prototype stack. Production adds a TLS edge (WAF), managed PostgreSQL, object storage and monitoring — same images.
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: baseera
+      POSTGRES_USER: baseera
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-baseera}
+    volumes: ["pgdata:/var/lib/postgresql/data"]
+    healthcheck: {test: ["CMD-SHELL", "pg_isready -U baseera"], interval: 10s, timeout: 5s, retries: 10}
+  api:
+    build: .
+    env_file: .env
+    environment:
+      BASEERA_DATABASE_URL: postgresql+psycopg://baseera:${POSTGRES_PASSWORD:-baseera}@db:5432/baseera
+      BASEERA_DATA_DIR: /app/data
+      BASEERA_MODEL_DIR: /app/data/models
+    volumes: ["appdata:/app/data"]
+    ports: ["8000:8000"]
+    depends_on: {db: {condition: service_healthy}}
+  worker:
+    build: .
+    env_file: .env
+    environment:
+      BASEERA_DATABASE_URL: postgresql+psycopg://baseera:${POSTGRES_PASSWORD:-baseera}@db:5432/baseera
+      BASEERA_DATA_DIR: /app/data
+      BASEERA_MODEL_DIR: /app/data/models
+    volumes: ["appdata:/app/data"]
+    depends_on: {db: {condition: service_healthy}}
+    # weekly cycle: Sunday 06:00 plan; daily 02:00 ledger. Replace with Kubernetes CronJobs in production.
+    command: >
+      sh -c "python -m baseera.cli migrate &&
+             while true; do
+               if [ \"$$(date +%u)\" = 7 ] && [ \"$$(date +%H)\" = 06 ]; then python -m baseera.cli build-features && python -m baseera.cli plan; fi;
+               if [ \"$$(date +%H)\" = 02 ]; then python -m baseera.cli ledger; fi;
+               sleep 3600; done"
+volumes: {pgdata: {}, appdata: {}}

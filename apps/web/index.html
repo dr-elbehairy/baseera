@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>بصيرة — المشرف</title>
+<link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+<header class="top">
+  <div class="brand"><span class="eye">◉</span> بصيرة <small>الصيانة التنبؤية للأصول الحضرية</small></div>
+  <nav id="nav">
+    <a href="#week" class="active">قائمة الأسبوع</a><a href="#map">الخريطة</a><a href="#ledger">السجل</a><a href="#backtest">الاختبار الرجعي</a><a href="#method">المنهجية</a>
+  </nav>
+  <div class="user"><span id="who"></span> <button id="logout" class="ghost">خروج</button></div>
+</header>
+
+<section id="login" class="card login">
+  <h2>تسجيل الدخول</h2>
+  <form id="loginForm"><input name="username" placeholder="اسم المستخدم" value="supervisor" autocomplete="username"><input name="password" type="password" placeholder="كلمة المرور" value="demo" autocomplete="current-password"><button>دخول</button></form>
+  <p class="muted">حسابات العرض: supervisor · manager · admin (كلمة المرور demo)</p>
+</section>
+
+<main id="app" hidden>
+  <div class="kpis" id="kpis"></div>
+
+  <section id="v-week" class="view">
+    <div class="row between"><h2>قائمة الأسبوع <span id="weekDate" class="muted"></span></h2>
+      <div><span id="capacity" class="pill"></span> <button id="approveAll">اعتماد الكل</button></div></div>
+    <table class="list" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="v-map" class="view" hidden>
+    <div class="row between"><h2>خريطة الخطر</h2><div class="legend"><i style="background:#2bb673"></i>منخفض <i style="background:#f2b84b"></i>متوسط <i style="background:#e5484d"></i>مرتفع <i class="sq"></i>خزانة <b>◆</b> في القائمة</div></div>
+    <div class="maprow"><canvas id="map" width="1100" height="760"></canvas><aside id="detail" class="card"><p class="muted">انقر على أصل لعرض بطاقته</p></aside></div>
+  </section>
+
+  <section id="v-ledger" class="view" hidden>
+    <h2>سجل قابلية التنبؤ (التشغيل الحي)</h2>
+    <p class="muted">PFR@L = نسبة الأعطال التي كان أصلها في قائمة أسبوع معتمدة قبل العطل بالمهلة اللازمة L. تُحسب بوظيفة واحدة في الاختبار الرجعي والتشغيل.</p>
+    <div id="ledgerChart" class="chart"></div>
+    <table class="list" id="ledgerTable"><thead><tr><th>الشهر</th><th>الأعطال</th><th>PFR@2</th><th>PFR@7</th><th>PFR@14</th><th>PFR@L الخاصة</th><th>نسبة الطارئ</th><th>أيام الانطفاء</th><th>التقاط الأعراض</th></tr></thead><tbody></tbody></table>
+    <div id="drift" class="callout"></div>
+    <h3>إصدارات النموذج</h3><table class="list" id="modelsTable"><thead><tr><th>الإصدار</th><th>التاريخ</th><th>AUC</th><th>Brier</th><th>PFR@L تحقق</th><th>قاعدة العمر</th><th>البوابات</th><th>معتمد</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="v-backtest" class="view" hidden>
+    <h2>الاختبار الرجعي <span class="tag" id="btSource"></span></h2>
+    <div class="kpis" id="btKpis"></div>
+    <div class="row"><div class="chart half" id="btBars"></div><div class="chart half" id="btSeries"></div></div>
+    <h3>بحسب نمط العطل</h3>
+    <table class="list" id="btModes"><thead><tr><th>النمط</th><th>الصنف</th><th>العدد</th><th>L (يوم)</th><th>PFR@L</th><th>PFR@7</th><th>وسيط المهلة</th></tr></thead><tbody></tbody></table>
+  </section>
+
+  <section id="v-method" class="view" hidden>
+    <h2>المنهجية في صفحة واحدة</h2>
+    <div class="grid2">
+      <div class="card"><h3>1 · ما نقيسه</h3><p><b>PFR@L</b>: نسبة الأعطال المؤكدة التي سبقها إنذار بمهلة ≥ L يومًا (L لكل نمط عطل). مقارنة ثابتة: قاعدة العمر بنفس طاقة الطاقم، و«اليوم» = 0%.</p></div>
+      <div class="card"><h3>2 · ما نتنبأ به</h3><p>احتمال العطل خلال 14 يومًا لكل أصل، من: العمر والنوع، سجل الأعطال، العلامات المسجّلة (QR/جولة/مواطن)، انقطاعات الدائرة، الطقس. تدريب زمني ومعايرة isotonic وبوابات قبول قبل أي إصدار.</p></div>
+      <div class="card"><h3>3 · كيف نقرر</h3><p>الخطر = الاحتمال × (علاوة الطارئ + كلفة العواقب). الأولوية = الخطر ÷ كلفة التدخل. قائمة بطاقة الطاقم؛ الأصول الحرجة لا تنزل تحت «فحص». المشرف يملك التجاوز بسبب مسجّل.</p></div>
+      <div class="card"><h3>4 · كيف نتعلم</h3><p>نتيجة كل زيارة وكل علامة وكل عطل مؤكد تعود إلى قاعدة البيانات؛ السجل الشهري يحسب المؤشر ويطلق إعادة التدريب عند الانجراف.</p></div>
+    </div>
+    <p class="muted">الأرقام في هذه الواجهة تُقرأ كلها من قاعدة البيانات أو من ملف الاختبار الرجعي؛ لا رقم مكتوب يدويًا. بيانات المحاكاة موسومة «simulated» في كل صف.</p>
+  </section>
+</main>
+<footer class="foot">بصيرة Baseera · الهاكاثون الهندسي 2026 · المسار الأول / التحدي الأول · فريق T-0848</footer>
+<script src="/static/app.js"></script>
+</body>
+</html>
