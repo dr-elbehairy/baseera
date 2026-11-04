@@ -33,6 +33,15 @@ def create_app() -> FastAPI:
     for r in (auth, assets, lists, field, ledger, admin, twin, schedule, assistant):
         app.include_router(r.router, prefix="/api")
 
+    @app.middleware("http")
+    async def _no_stale_ui(request, call_next):
+        """The apps have no build step: make browsers revalidate HTML/JS/CSS so a redeploy never leaves a stale screen."""
+        resp = await call_next(request)
+        p = request.url.path
+        if p == "/" or p.startswith("/static/") or p.startswith("/field"):
+            resp.headers["Cache-Control"] = "no-cache, must-revalidate"
+        return resp
+
     @app.get("/api/health", tags=["ops"])
     def health():
         return {"status": "ok", "env": s.env, "version": app.version}
