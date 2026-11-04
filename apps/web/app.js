@@ -443,4 +443,8 @@ function barChart(rows, title) {
   return `<h4>${esc(title)} <small class="muted">■ بصيرة ▫ قاعدة العمر</small></h4><svg viewBox="0 0 ${W} ${H}" direction="ltr">${bars}</svg>`;
 }
 
+/* The technician PWA used to be cache-first; a stale worker could keep serving an old shell. Clear it from here once —
+   the PWA registers its new network-first worker on its next open. Idempotent and harmless when nothing is registered. */
+(async () => { try { if ("serviceWorker" in navigator) { const rs = await navigator.serviceWorker.getRegistrations(); for (const r of rs) await r.unregister(); } if (window.caches) { for (const k of await caches.keys()) await caches.delete(k); } } catch {} })();
+
 if (TOKEN) boot();

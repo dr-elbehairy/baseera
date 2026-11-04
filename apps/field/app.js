@@ -8,7 +8,7 @@ const saveQueue = (q) => { localStorage.setItem(QKEY, JSON.stringify(q)); $("#qu
 const toast = (m, bad) => { const t = document.createElement("div"); t.className = "toast " + (bad ? "bad" : "ok"); t.textContent = m; document.body.appendChild(t); setTimeout(() => t.remove(), 2400); };
 const uid = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now() + "-" + Math.random().toString(16).slice(2));
 
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("/field/sw.js");
+if ("serviceWorker" in navigator) { navigator.serviceWorker.register("/field/sw.js").then((r) => r.update()).catch(() => null); let reloaded = false; navigator.serviceWorker.addEventListener("controllerchange", () => { if (!reloaded) { reloaded = true; location.reload(); } }); }
 const setNet = () => { const on = navigator.onLine; $("#net").textContent = on ? "متصل" : "دون اتصال"; $("#net").className = "badge " + (on ? "ok" : "warn"); if (on) sync(); };
 window.addEventListener("online", setNet); window.addEventListener("offline", setNet);
 
