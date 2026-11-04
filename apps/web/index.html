@@ -45,11 +45,12 @@
   </aside>
 
   <main class="content">
-    <div class="topbar"><div><h1 id="title">لوحة المتابعة</h1><div class="crumbs" id="crumbs"></div></div><div class="row" id="topRight"></div></div>
+    <div class="topbar"><div><h1 id="title">لوحة المتابعة</h1><div class="crumbs" id="crumbs"></div></div><div class="row"><div class="chips" id="catChips"></div><div class="row" id="topRight"></div></div></div>
 
     <!-- ============================== home -->
     <section id="v-home" class="view">
       <div class="kpis" id="homeKpis"></div>
+      <div class="card" style="margin-bottom:14px"><div class="hd"><h3>فئات الأصول الحضرية</h3><span class="small text2">الإنارة والمصاعد ومحطات الضخ والأرصفة: المنصة واحدة، والفيزياء لكل فئة في الكتالوج</span></div><div id="homeCats" class="grid g2"></div></div>
       <div class="grid g2">
         <div class="card"><div class="hd"><h3>حالة البيانات</h3><a href="#data" class="small">إدارة المدخلات</a></div><div id="homeData"></div></div>
         <div class="card"><div class="hd"><h3>النموذج والقائمة</h3><a href="#ops" class="small">التشغيل</a></div><div id="homeModel"></div></div>
@@ -65,13 +66,13 @@
       <div class="kpis" id="kpis"></div>
       <div class="card"><div class="hd"><div class="row"><h3>قائمة الأسبوع <span id="weekDate" class="muted"></span></h3><span id="capacity" class="badge"></span></div>
         <button id="approveAll" class="btn">اعتماد كل البنود</button></div>
-        <div class="scroll"><table class="tbl" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="scroll"><table class="tbl" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>الفئة</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
     <!-- ============================== map -->
     <section id="v-map" class="view" hidden>
-      <div class="row between" style="margin-bottom:10px"><div class="legend"><i style="background:#1f8a5b"></i>منخفض <i style="background:#b7791f"></i>متوسط <i style="background:#c0392b"></i>مرتفع <i class="sq"></i>خزانة · <b>◇</b> في قائمة الأسبوع</div></div>
+      <div class="row between" style="margin-bottom:10px"><div class="legend"><i style="background:#1f8a5b"></i>منخفض <i style="background:#b7791f"></i>متوسط <i style="background:#c0392b"></i>مرتفع <i class="sq"></i>خزانة/لوحة · <b>▲</b> مضخة · <b>■</b> مصعد · <b>▬</b> رصيف · <b>◇</b> في قائمة الأسبوع</div></div>
       <div class="maprow"><canvas id="map" width="1100" height="760"></canvas><aside id="detail" class="card"><p class="muted">انقر على أصل لعرض بطاقته والتفسير.</p></aside></div>
     </section>
 
@@ -88,12 +89,13 @@
     <section id="v-backtest" class="view" hidden>
       <div class="kpis" id="btKpis"></div>
       <div class="row"><div class="chart half" id="btBars"></div><div class="chart half" id="btSeries"></div></div>
-      <div class="card" style="margin-top:14px"><div class="hd"><h3>بحسب نمط العطل</h3></div><table class="tbl" id="btModes"><thead><tr><th>النمط</th><th>الصنف</th><th>العدد</th><th>L (يوم)</th><th>PFR@L</th><th>PFR@7</th><th>وسيط المهلة</th></tr></thead><tbody></tbody></table></div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>بحسب فئة الأصول</h3></div><table class="tbl" id="btCats"><thead><tr><th>الفئة</th><th>الأصول</th><th>الأعطال</th><th>PFR@L بصيرة</th><th>قاعدة العمر</th><th>نسبة الطارئ</th></tr></thead><tbody></tbody></table></div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>بحسب نمط العطل</h3></div><table class="tbl" id="btModes"><thead><tr><th>النمط</th><th>الفئة</th><th>الصنف</th><th>العدد</th><th>L (يوم)</th><th>PFR@L</th><th>PFR@7</th><th>وسيط المهلة</th></tr></thead><tbody></tbody></table></div>
     </section>
 
     <!-- ============================== data panel -->
     <section id="v-data" class="view" hidden>
-      <div class="tabs" id="dataTabs"><button data-t="upload" class="on">رفع ملف</button><button data-t="manual">إدخال سجل</button><button data-t="quarantine">الحجر الصحي <span id="qCount" class="badge"></span></button><button data-t="runs">سجل الرفع</button></div>
+      <div class="tabs" id="dataTabs"><button data-t="upload" class="on">رفع ملف</button><button data-t="manual">إدخال سجل</button><button data-t="quarantine">الحجر الصحي <span id="qCount" class="badge"></span></button><button data-t="runs">سجل الرفع</button><button data-t="catalog">كتالوج الأصول</button></div>
 
       <div id="d-upload">
         <ol class="steps" id="upSteps"><li class="on">1 · اختر نوع البيانات</li><li>2 · ارفع الملف</li><li>3 · راجع المعاينة</li><li>4 · اعتمد الإدخال</li></ol>
@@ -127,6 +129,8 @@
           <div class="scroll"><table class="tbl" id="qTable"><thead><tr><th>#</th><th>الخط</th><th>السبب</th><th>السطر</th><th>الوقت</th><th></th></tr></thead><tbody></tbody></table></div>
         </div>
       </div>
+
+      <div id="d-catalog" hidden><div id="catalogBody"></div></div>
 
       <div id="d-runs" hidden>
         <div class="card"><div class="hd"><h3>سجل عمليات الرفع</h3></div><table class="tbl" id="runsTable"><thead><tr><th>الوقت</th><th>الخط</th><th>الوارد</th><th>المقبول</th><th>المحجور</th></tr></thead><tbody></tbody></table></div>

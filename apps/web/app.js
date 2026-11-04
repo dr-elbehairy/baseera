@@ -2,7 +2,9 @@
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 const API = "/api";
-let TOKEN = localStorage.getItem("baseera.token"), ME = null, ASSETS = [], CUR = null, BT = null, SCHEMA = [], PIPE = "assets", PREVIEW_FILE = null, PARAMS = [], JOBPOLL = null;
+let TOKEN = localStorage.getItem("baseera.token"), ME = null, ASSETS = [], CUR = null, BT = null, SCHEMA = [], PIPE = "assets", PREVIEW_FILE = null, PARAMS = [], JOBPOLL = null, CATALOG = [], CAT = "";
+const CAT_AR = { lighting: "الإنارة", pumping: "محطات الضخ", elevators: "المصاعد", pavement: "الأرصفة والمعابر" };
+const STATUS_CAT = { pilot: "التجربة الحالية", ready: "جاهزة للاستيعاب" };
 const fmt = (x, d = 0) => (x == null ? "—" : Number(x).toLocaleString("en", { maximumFractionDigits: d }));
 const pct = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -38,8 +40,14 @@ async function boot() {
   $("#who").textContent = `${ME.display_name} · ${ROLE_AR[ME.role] || ME.role}`;
   $$("#nav [data-roles]").forEach((a) => (a.hidden = !a.dataset.roles.split(",").includes(ME.role)));
   $("#login").hidden = true; $("#app").hidden = false;
-  loadAssets(); route();
+  try { CATALOG = await api("/admin/catalog"); } catch { CATALOG = []; }
+  renderChips(); loadAssets(); route();
 }
+function renderChips() {
+  $("#catChips").innerHTML = [["", "كل الفئات"], ...Object.entries(CAT_AR)].map(([k, v]) => `<button class="chip ${CAT === k ? "on" : ""}" data-cat="${k}">${v}</button>`).join("");
+}
+$("#catChips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (!b) return; CAT = b.dataset.cat; renderChips(); route(); });
+const inCat = (c) => !CAT || c === CAT;
 window.addEventListener("hashchange", route);
 function route() {
   let h = (location.hash || "#home").slice(1);
@@ -58,6 +66,8 @@ async function loadHome() {
   try { CUR = await api("/weekly-lists/current"); } catch { CUR = null; }
   let L = null; try { L = await api("/ledger/months"); } catch {}
   const last = L?.months?.filter((m) => m.n_failures).slice(-1)[0];
+  if (ov && ov.categories) $("#homeCats").innerHTML = ov.categories.map((c) => `<div class="catcard"><div class="row between"><b>${esc(c.ar)}</b><span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status] || c.status}</span></div><div class="row" style="gap:18px;margin-top:6px"><div><span class="n">${fmt(c.n_assets)}</span> <small class="muted">أصل</small></div><div><span class="n">${fmt(c.n_failures)}</span> <small class="muted">عطل مسجّل</small></div></div><p class="small text2" style="margin:4px 0 0">${esc(c.status_ar)}</p></div>`).join("");
+  else $("#homeCats").innerHTML = Object.entries(CAT_AR).map(([k, v]) => { const n = ASSETS.filter((a) => a.category === k).length; return `<div class="catcard"><b>${v}</b><div><span class="n">${fmt(n)}</span> <small class="muted">أصل في الخريطة</small></div></div>`; }).join("");
   $("#homeKpis").innerHTML = kpi("أصول تحت المراقبة", fmt(ov ? ov.tables.assets.n : ASSETS.length)) + kpi("قائمة الأسبوع", CUR ? `${CUR.items.length} <small>بند · ${CUR.status === "approved" ? "معتمدة" : "مقترحة"}</small>` : "—")
     + kpi("PFR@L آخر شهر <small>(قوائم معتمدة)</small>", last ? pct(last.pfr.own) : "—", "accent") + kpi("نسبة الطارئ", last ? pct(last.emergency_share) : "—") + (ov ? kpi("سطور محجورة", fmt(ov.quarantine_open), ov.quarantine_open ? "" : "") : "");
   if (ov) {
@@ -81,11 +91,11 @@ async function loadWeek() {
   $("#weekDate").textContent = "أسبوع " + CUR.week_start;
   $("#capacity").textContent = `${CUR.used} / ${CUR.capacity} طاقة الطاقم · ${CUR.status === "approved" ? "معتمدة" : "مقترحة"}`; $("#capacity").className = "badge " + (CUR.status === "approved" ? "ok" : "warn");
   $("#approveAll").hidden = ME.role !== "supervisor" || CUR.status === "approved";
-  $("#weekTable tbody").innerHTML = CUR.items.map((i) => `<tr data-id="${i.item_id}" class="${i.status}">
+  $("#weekTable tbody").innerHTML = CUR.items.filter((i) => inCat(i.category)).map((i) => `<tr data-id="${i.item_id}" class="${i.status}">
     <td class="num">${i.rank}</td><td><a href="#map" data-asset="${i.asset_id}">${esc(i.code)}</a>${i.crit !== "none" ? ' <span class="crit">' + esc(CRIT_AR[i.crit] || i.crit) + "</span>" : ""}</td>
-    <td>${esc(i.type)}</td><td>${i.street === "main" ? "رئيسي" : "فرعي"}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
+    <td><span class="badge">${esc(CAT_AR[i.category] || i.category || "")}</span></td><td>${esc(i.type)}</td><td>${i.street === "main" ? "رئيسي" : "فرعي"}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
     <td class="num">${fmt(i.risk_sar)}</td><td><b>${esc(i.action_ar)}</b></td><td class="reason">${esc(i.reason)}</td>
-    <td>${statusAr(i)}</td><td class="actions">${ME.role === "supervisor" && i.status === "proposed" ? `<button class="btn sm" data-act="approved">اعتماد</button><button class="btn ghost sm" data-act="overridden">تجاوز</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="10"><div class="empty">لا أصول فوق عتبة الإنذار هذا الأسبوع</div></td></tr>';
+    <td>${statusAr(i)}</td><td class="actions">${ME.role === "supervisor" && i.status === "proposed" ? `<button class="btn sm" data-act="approved">اعتماد</button><button class="btn ghost sm" data-act="overridden">تجاوز</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="11"><div class="empty">لا أصول فوق عتبة الإنذار هذا الأسبوع في هذه الفئة</div></td></tr>';
   const sumRisk = CUR.items.reduce((s, i) => s + i.risk_sar, 0);
   $("#kpis").innerHTML = kpi("الأصول في القائمة", CUR.items.length) + kpi("الخطر المتوقع (ر.س)", fmt(sumRisk), "accent") + kpi("احتمال أعلى بند", pct(CUR.items[0]?.p)) + kpi("الحالة", CUR.status === "approved" ? "معتمدة" : "مقترحة");
 }
@@ -112,20 +122,25 @@ function drawMap() {
   MAPT = (a) => [pad + (a.lon - x0) * s, c.height - pad - (a.lat - y0) * s];
   ctx.strokeStyle = "#dfe5eb"; for (let g = 0; g <= 10; g++) { ctx.beginPath(); ctx.moveTo(pad + (g * (c.width - 2 * pad)) / 10, 0); ctx.lineTo(pad + (g * (c.width - 2 * pad)) / 10, c.height); ctx.stroke(); }
   for (const a of ASSETS) {
+    if (!inCat(a.category)) continue;
     const [x, y] = MAPT(a); ctx.fillStyle = riskColor(a.p);
-    if (a.kind === "cabinet") ctx.fillRect(x - 6, y - 6, 12, 12); else { ctx.beginPath(); ctx.arc(x, y, a.listed ? 5 : 3, 0, 7); ctx.fill(); }
+    if (a.kind === "cabinet" || a.kind === "panel") ctx.fillRect(x - 6, y - 6, 12, 12);
+    else if (a.category === "pumping") { ctx.beginPath(); ctx.moveTo(x, y - 7); ctx.lineTo(x + 7, y + 5); ctx.lineTo(x - 7, y + 5); ctx.closePath(); ctx.fill(); }
+    else if (a.category === "elevators") { ctx.fillRect(x - 5, y - 5, 10, 10); ctx.strokeStyle = "#fff"; ctx.strokeRect(x - 5, y - 5, 10, 10); }
+    else if (a.category === "pavement") { ctx.fillRect(x - 6, y - 2, 12, 4); }
+    else { ctx.beginPath(); ctx.arc(x, y, a.listed ? 5 : 3, 0, 7); ctx.fill(); }
     if (a.listed) { ctx.strokeStyle = "#152230"; ctx.lineWidth = 1.5; ctx.beginPath(); ctx.moveTo(x, y - 9); ctx.lineTo(x + 9, y); ctx.lineTo(x, y + 9); ctx.lineTo(x - 9, y); ctx.closePath(); ctx.stroke(); }
   }
 }
 $("#map").addEventListener("click", (e) => {
   const r = e.target.getBoundingClientRect(), x = (e.clientX - r.left) * (e.target.width / r.width), y = (e.clientY - r.top) * (e.target.height / r.height);
-  let best = null, bd = 1e9; for (const a of ASSETS) { const [ax, ay] = MAPT(a); const d = (ax - x) ** 2 + (ay - y) ** 2; if (d < bd) { bd = d; best = a; } }
+  let best = null, bd = 1e9; for (const a of ASSETS) { if (!inCat(a.category)) continue; const [ax, ay] = MAPT(a); const d = (ax - x) ** 2 + (ay - y) ** 2; if (d < bd) { bd = d; best = a; } }
   if (best && bd < 400) showCard(best.asset_id);
 });
 document.addEventListener("click", (e) => { const a = e.target.closest("a[data-asset]"); if (a) setTimeout(() => showCard(a.dataset.asset), 60); });
 async function showCard(id) {
   const c = await api("/assets/" + id); const p = c.prediction, ex = p?.explanation || {};
-  $("#detail").innerHTML = `<h3>${esc(c.code)} <small class="muted">${esc(c.type)} · ${c.street === "main" ? "رئيسي" : "فرعي"} · ${esc(CRIT_AR[c.crit] || "")}</small></h3>
+  $("#detail").innerHTML = `<h3>${esc(c.code)} <small class="muted">${esc(CAT_AR[c.category] || "")} · ${esc(c.type)} · ${c.street === "main" ? "رئيسي" : "فرعي"} · ${esc(CRIT_AR[c.crit] || "")}</small></h3>
     <div class="kv" style="margin-top:8px"><span>الخزانة</span><b>${esc(c.cabinet || "—")}</b><span>التركيب</span><b>${esc(c.install || "—")}</b><span>الاحتمال 14 يومًا</span><b style="color:${riskColor(p?.p)}">${pct(p?.p, 1)}</b><span>الخطر (ر.س)</span><b>${fmt(p?.risk_sar)}</b><span>المصدر</span><b><span class="badge ${c.source === "simulated" ? "sim" : "ok"}">${c.source === "simulated" ? "محاكاة" : esc(c.source)}</span></b></div>
     ${c.list_item ? `<p style="margin-top:8px"><span class="badge info">في قائمة الأسبوع #${c.list_item.rank} · ${esc(c.list_item.action)} · ${esc(c.list_item.status)}</span></p><p class="reason">${esc(c.list_item.reason)}</p>` : ""}
     ${Object.keys(ex).length ? `<h4 style="margin-top:10px">لماذا هذا الاحتمال</h4><ul class="expl">${Object.entries(ex).sort((a, b) => b[1] - a[1]).map(([g, v]) => `<li><span>${esc(GROUP_AR[g] || g)}</span><i style="width:${Math.max(2, Math.abs(v) * 300)}px;background:${v >= 0 ? "#c0392b" : "#1f8a5b"}"></i>${(v * 100).toFixed(1)} نقطة</li>`).join("")}</ul>` : ""}
@@ -154,7 +169,8 @@ async function loadBacktest() {
   $("#btKpis").innerHTML = kpi("PFR@L — بصيرة", pct(P.baseera), "accent") + kpi("PFR@L — قاعدة العمر", pct(P.age_rule)) + kpi("PFR@L — اليوم", "0%") + kpi("نسبة الطارئ", `${pct(BT.emergency_share.reactive)} ← ${pct(BT.emergency_share.baseera)}`) + kpi("أيام الانطفاء", `${fmt(BT.dark_days.reactive)} ← ${fmt(BT.dark_days.baseera)}`) + kpi("AUC · الدقة@30", `${BT.metrics.auc.toFixed(2)} · ${pct(BT.precision30)}`) + kpi("الأعطال / الأسابيع", `${BT.n_failures} / ${BT.weeks}`);
   $("#btBars").innerHTML = barChart(Object.entries(BT.pfr).map(([L, v]) => ({ label: "L=" + L, a: v.baseera, b: v.age_rule })), "PFR@L بحسب المهلة: بصيرة مقابل قاعدة العمر");
   $("#btSeries").innerHTML = lineChart(BT.series.map((s) => ({ x: s.week.slice(5), y: s.failures ? s.anticipated / s.failures : null })), "نسبة الأعطال المُنذَر بها أسبوعيًا");
-  $("#btModes tbody").innerHTML = BT.by_mode.map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${m.cls}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
+  $("#btCats tbody").innerHTML = (BT.by_category || []).map((c) => `<tr><td><b>${esc(c.ar)}</b></td><td class="num">${fmt(c.n_assets)}</td><td class="num">${c.n}</td><td class="num"><b>${pct(c.pfr_L)}</b></td><td class="num">${pct(c.pfr_age)}</td><td class="num">${pct(c.emergency_share)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted small">الاختبار الرجعي الحالي سابق لإضافة الفئات؛ أعد تشغيله</td></tr>';
+  $("#btModes tbody").innerHTML = BT.by_mode.map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${esc(CAT_AR[(CATALOG.find((c) => c.modes.some((x) => x.code === m.mode)) || {}).key] || "")}</td><td>${m.cls}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
 }
 
 /* ------------------------------------------------------------------ data panel */
@@ -202,7 +218,13 @@ $("#commit").onclick = async () => {
   try { const r = await api(`/admin/ingest/${PIPE}/run?source=${$("#source").value}`, { method: "POST", body: fd }); steps(4); toast(`أُدخل ${fmt(r.n_ok)} سطرًا؛ ${fmt(r.n_quarantined)} في الحجر`, "ok"); $("#commitMsg").innerHTML = `تم: ${fmt(r.n_ok)} مقبول · ${fmt(r.n_quarantined)} محجور. <a href="#ops">أعد الحساب</a> ليظهر الأثر في القائمة.`; PREVIEW_FILE = null; loadData(); }
   catch (e) { toast(e.message, "bad"); $("#commit").disabled = false; }
 };
-$("#dataTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#dataTabs button").forEach((x) => x.classList.toggle("on", x === b)); ["upload", "manual", "quarantine", "runs"].forEach((t) => ($("#d-" + t).hidden = t !== b.dataset.t)); if (b.dataset.t === "quarantine") loadQuarantine(); if (b.dataset.t === "runs") loadRuns(); });
+$("#dataTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#dataTabs button").forEach((x) => x.classList.toggle("on", x === b)); ["upload", "manual", "quarantine", "runs", "catalog"].forEach((t) => ($("#d-" + t).hidden = t !== b.dataset.t)); if (b.dataset.t === "quarantine") loadQuarantine(); if (b.dataset.t === "runs") loadRuns(); if (b.dataset.t === "catalog") renderCatalog(); });
+function renderCatalog() {
+  $("#catalogBody").innerHTML = CATALOG.map((c) => `<div class="card" style="margin-bottom:12px"><div class="hd"><h3>${esc(c.ar)} <span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status]}</span></h3><span class="small text2">${esc(c.status_ar)}</span></div>
+    <div class="grid g3"><div><h4>أنواع الأصول</h4><table class="tbl">${c.types.map((t) => `<tr><td><span class="mono">${t.code}</span></td><td>${esc(t.ar)}</td><td class="num small">${t.design_life_y} سنة · ${fmt(t.cost_planned)} ر.س</td></tr>`).join("")}</table></div>
+    <div><h4>أنماط العطل (الصنف · المهلة L)</h4><table class="tbl">${c.modes.map((m) => `<tr><td><span class="mono">${m.code}</span></td><td>${esc(m.ar)}</td><td class="num small">${m.cls} · ${m.L} يوم</td></tr>`).join("")}</table></div>
+    <div><h4>العلامات المرصودة</h4><table class="tbl">${c.symptoms.map((s) => `<tr><td><span class="mono">${s.code}</span></td><td>${esc(s.ar)}</td></tr>`).join("")}</table></div></div></div>`).join("");
+}
 $("#manualPipe").onchange = (e) => renderManual(e.target.value);
 function renderManual(name) {
   const p = SCHEMA.find((x) => x.name === name); if (!p) return; $("#manualHelp").textContent = p.help;

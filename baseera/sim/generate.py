@@ -42,6 +42,9 @@ class SimConfig:
     emergency_multiplier: float = 2.0
     share_led: float = 0.65
     share_halogen: float = 0.30
+    n_pumping: int = 40                # other categories (simplified simulation, sim/generic.py); 0 disables
+    n_elevators: int = 30
+    n_pavement: int = 200
 
 
 def generate(cfg: SimConfig = SimConfig()) -> dict[str, pd.DataFrame]:
@@ -201,10 +204,21 @@ def generate(cfg: SimConfig = SimConfig()) -> dict[str, pd.DataFrame]:
     observations = pd.DataFrame(dict(asset_code=[code(int(a)) for a in seen.asset], observed_at=[DATES[d] + pd.Timedelta(hours=20) for d in seen.d],
                                      symptom_code=seen.kind.values, severity=rng.integers(1, 4, len(seen)), source=src,
                                      observer_id=["tech-%02d" % rng.integers(1, 7) if s == "technician_qr" else "" for s in src]))
-    return dict(assets=assets, cabinets=cabinets, weather=weather, reports=pd.DataFrame(reports), work_orders=pd.DataFrame(wos),
-                observations=observations, truth=pd.DataFrame(truth),
-                meta=pd.DataFrame([dict(n_poles=N, n_cabinets=P.n_cabinets, days=D, start=P.start, seed=P.seed, vis_main=cfg.vis_main,
-                                        vis_sec=cfg.vis_sec, n_failures=len(EV), n_symptom_episodes=len(PR), n_observations=len(seen))]))
+    reports_df, wos_df, truth_df = pd.DataFrame(reports), pd.DataFrame(wos), pd.DataFrame(truth)
+    n_fail_other = 0; n_ep_other = 0
+    for cat, n_cat, vis in (("pumping", cfg.n_pumping, 0.65), ("elevators", cfg.n_elevators, 0.70), ("pavement", cfg.n_pavement, 0.45)):
+        if n_cat <= 0:
+            continue
+        from .generic import generate_category
+        g = generate_category(cat, n_cat, DATES, weather, np.random.default_rng(cfg.seed + hash(cat) % 1000), vis, cfg.code_share, cfg.emergency_multiplier, 0)
+        assets = pd.concat([assets, g["assets"]], ignore_index=True); reports_df = pd.concat([reports_df, g["reports"]], ignore_index=True)
+        wos_df = pd.concat([wos_df, g["work_orders"]], ignore_index=True); observations = pd.concat([observations, g["observations"]], ignore_index=True)
+        truth_df = pd.concat([truth_df, g["truth"]], ignore_index=True); n_fail_other += g["n_failures"]; n_ep_other += g["n_symptom_episodes"]
+    return dict(assets=assets, cabinets=cabinets, weather=weather, reports=reports_df, work_orders=wos_df,
+                observations=observations, truth=truth_df,
+                meta=pd.DataFrame([dict(n_poles=N, n_cabinets=P.n_cabinets, n_other=cfg.n_pumping + cfg.n_elevators + cfg.n_pavement, days=D, start=P.start,
+                                        seed=P.seed, vis_main=cfg.vis_main, vis_sec=cfg.vis_sec, n_failures=len(EV) + n_fail_other,
+                                        n_symptom_episodes=len(PR) + n_ep_other, n_observations=len(observations))]))
 
 
 def write(tables: dict[str, pd.DataFrame], outdir: str) -> dict[str, str]:

@@ -6,9 +6,10 @@ forecast available at W). Sources: `ops_asset`, `ops_cabinet`, `ledger_failure_e
 | feature | definition | source | why it matters |
 |---|---|---|---|
 | age_y | (W − install_date) / 365.25 | asset | wear-out modes (LED driver, lamp EOL) |
+| category_code | asset | lighting 0 · pumping 1 · elevators 2 · pavement 3 (core/catalog.py) | asset register |
 | type_code | LED=0 HAL=1 SOL=2 CAB=3 | asset | different failure physics per type |
 | main_road | 1 if street_class = main | asset | exposure, vandalism, reporting speed |
-| is_cabinet | 1 if kind = cabinet | asset | network asset; failure darkens all members |
+| is_cabinet (1 for network nodes: cabinets and pump-station panels) | 1 if kind = cabinet | asset | network asset; failure darkens all members |
 | crit_w | consequence weight of the site (crossing 2.4, hospital 3.0 …) | asset | used in the decision engine too |
 | cabinet_age_y | age of the feeding cabinet | cabinet | upstream stress |
 | days_since_last_fail | days since the last failure reported before W (999 = none) | failure_event | repeat failures cluster |

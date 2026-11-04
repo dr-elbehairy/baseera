@@ -11,8 +11,8 @@ from .pipelines.core import ORDER, PIPELINES
 FIELDS: dict[str, list[tuple[str, str, bool, str, str]]] = {
     "cabinets": [("cabinet_code", "رمز الخزانة", True, "CB-01", "يُطبَّع تلقائيًا: cb-1 → CB-01"), ("lon", "خط الطول", True, "46.7012", "داخل المملكة"),
                  ("lat", "خط العرض", True, "24.8031", "داخل المملكة"), ("install_date", "تاريخ التركيب", False, "2019-03-15", "YYYY-MM-DD")],
-    "assets": [("asset_code", "رمز الأصل", True, "LP-10001", "يُطبَّع تلقائيًا: lp10001 → LP-10001"), ("asset_type", "نوع الأصل", True, "LED", "LED | HAL | SOL | CAB"),
-               ("kind", "الصنف", False, "pole", "pole | cabinet"), ("street_class", "تصنيف الشارع", False, "main", "main | sec"),
+    "assets": [("asset_code", "رمز الأصل", True, "LP-10001", "يُطبَّع تلقائيًا: lp10001 → LP-10001"), ("asset_type", "نوع الأصل", True, "LED", "الإنارة: LED HAL SOL CAB · الضخ: PMP PNL VLV · المصاعد: ELV ESC LFT · الأرصفة: PAV RMP CRS"),
+               ("kind", "الصنف", False, "", "يُستنتج من النوع إن تُرك فارغًا"), ("street_class", "تصنيف الشارع", False, "main", "main | sec"),
                ("criticality", "الحرج", False, "school", "none | mosque | school | crossing | hospital"), ("lon", "خط الطول", True, "46.7021", ""),
                ("lat", "خط العرض", True, "24.8044", ""), ("install_date", "تاريخ التركيب", False, "2021-06-01", "YYYY-MM-DD"),
                ("cabinet_code", "رمز الخزانة", False, "CB-01", "يجب أن تكون الخزانة محمّلة أولًا"), ("owner_entity", "الجهة المالكة", False, "municipality", "")],
@@ -25,16 +25,16 @@ FIELDS: dict[str, list[tuple[str, str, bool, str, str]]] = {
                 ("closed_at", "وقت الإغلاق", False, "2026-06-03 10:00", ""), ("reporter", "هوية المبلّغ", False, "0555xxxxxx", "لا تُخزَّن؛ تُحوَّل إلى بصمة مملّحة (PDPL)")],
     "work_orders": [("external_ref", "رقم أمر العمل", False, "WO-2026-0456", "يمنع التكرار"), ("asset_code", "رمز الأصل", True, "LP-10001", ""),
                     ("kind", "النوع", True, "emergency", "emergency | planned"), ("opened_at", "وقت الفتح", True, "2026-06-02 08:00", ""),
-                    ("closed_at", "وقت الإغلاق", False, "2026-06-02 15:30", ""), ("fault_code", "رمز العطل", False, "led_driver", "lamp_eol | led_driver | cabinet | cable_joint | solar_battery | collision"),
+                    ("closed_at", "وقت الإغلاق", False, "2026-06-02 15:30", ""), ("fault_code", "رمز العطل", False, "led_driver", "من قائمة أنماط العطل في الكتالوج (/api/admin/catalog)؛ أو فارغ"),
                     ("cost_sar", "التكلفة (ر.س)", False, "1300", ""), ("report_ref", "مرجع البلاغ المرتبط", False, "R-2026-000123", "")],
     "observations": [("asset_code", "رمز الأصل", True, "LP-10001", ""), ("observed_at", "وقت الرصد", True, "2026-06-01 22:10", ""),
-                     ("symptom_code", "العلامة", True, "flicker", "flicker | cycling | dim | partial_trip | intermittent | noise | heat | rust | tilt | other"),
+                     ("symptom_code", "العلامة", True, "flicker", "من قائمة علامات فئة الأصل في الكتالوج"),
                      ("severity", "الشدة", False, "2", "1..3"), ("source", "المصدر", False, "technician_qr", "technician_qr | patrol | citizen"),
                      ("observer_id", "معرّف الراصد", False, "T-07", ""), ("note", "ملاحظة", False, "", ""), ("client_ref", "مرجع العميل", False, "", "يمنع التكرار")],
 }
 LABEL_AR = {"cabinets": "الخزانات", "assets": "الأصول (الأعمدة والخزانات)", "weather": "الطقس اليومي", "reports": "البلاغات (940 / الجهة)",
             "work_orders": "أوامر العمل", "observations": "العلامات المرصودة"}
-HELP_AR = {"cabinets": "تُحمَّل أولًا لأن الأصول تُربط بها.", "assets": "سجل الأصول من نظام الجهة أو المقاول؛ الرفع المتكرر يحدّث لا يكرّر.",
+HELP_AR = {"cabinets": "تُحمَّل أولًا لأن الأصول تُربط بها.", "assets": "سجل الأصول من نظام الجهة أو المقاول لأي فئة (إنارة، ضخ، مصاعد، أرصفة)؛ الرفع المتكرر يحدّث لا يكرّر.",
            "weather": "من الهيئة العامة للأرصاد أو أي مصدر يومي؛ قطاع واحد يكفي في البداية.",
            "reports": "تصدير بلاغات الإنارة؛ البلاغ بلا رمز أصل يُطابَق مكانيًا.", "work_orders": "أوامر الطوارئ هي مصدر أحداث العطل في السجل.",
            "observations": "عادةً تأتي من تطبيق الفني؛ هذا المسار للاستيراد الجماعي من جولات سابقة."}

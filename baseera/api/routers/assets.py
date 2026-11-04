@@ -18,7 +18,7 @@ def _latest_week(db: Session, run_tag: str = "live") -> date | None:
 
 
 @router.get("")
-def list_assets(bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"), asset_type: str | None = None,
+def list_assets(bbox: str | None = Query(None, description="minLon,minLat,maxLon,maxLat"), asset_type: str | None = None, category: str | None = None,
                 limit: int = Query(5000, le=20000), db: Session = Depends(get_db), u: User = Depends(require("supervisor", "manager", "technician"))):
     q = db.query(Asset).filter(Asset.active.is_(True))
     if bbox:
@@ -29,6 +29,8 @@ def list_assets(bbox: str | None = Query(None, description="minLon,minLat,maxLon
         q = q.filter(Asset.lon.between(x0, x1), Asset.lat.between(y0, y1))
     if asset_type:
         q = q.filter(Asset.asset_type == asset_type.upper())
+    if category:
+        q = q.filter(Asset.category == category)
     assets = q.limit(limit).all()
     wk = _latest_week(db)
     preds = {}
@@ -40,7 +42,7 @@ def list_assets(bbox: str | None = Query(None, description="minLon,minLat,maxLon
         if wl:
             listed = {i.asset_id for i in wl.items}
     return {"week_start": str(wk) if wk else None, "n": len(assets), "items": [
-        dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
+        dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
              install=str(a.install_date) if a.install_date else None, cabinet=a.cabinet.cabinet_code if a.cabinet else None,
              p=(round(preds[a.asset_id].p_fail, 4) if a.asset_id in preds else None),
              risk=(round(preds[a.asset_id].risk_sar, 1) if a.asset_id in preds else None), listed=a.asset_id in listed) for a in assets]}
@@ -61,7 +63,7 @@ def asset_card(asset_id: str, db: Session = Depends(get_db), u: User = Depends(r
         wl = db.query(WeeklyList).filter_by(week_start=wk, run_tag="live").first()
         if wl:
             item = next((i for i in wl.items if i.asset_id == a.asset_id), None)
-    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
+    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
                 install=str(a.install_date) if a.install_date else None, cabinet=a.cabinet.cabinet_code if a.cabinet else None, owner=a.owner_entity,
                 source=a.source, week_start=str(wk) if wk else None,
                 prediction=(dict(p=round(p.p_fail, 4), risk_sar=round(p.risk_sar, 1), priority=round(p.priority, 4), explanation=p.explanation,

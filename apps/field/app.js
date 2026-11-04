@@ -50,7 +50,8 @@ async function lookup(code) {
   if (!code) return;
   try { ASSET = await api("/field/assets/" + encodeURIComponent(code.trim())); } catch (e) { return toast(e.message, true); }
   $("#asset").hidden = false; $("#aCode").textContent = ASSET.code;
-  $("#aMeta").textContent = `${ASSET.type} · ${ASSET.street === "main" ? "شارع رئيسي" : "شارع فرعي"} · خزانة ${ASSET.cabinet || "—"} · احتمال العطل ${ASSET.p == null ? "—" : Math.round(ASSET.p * 100) + "%"}`;
+  $("#aMeta").textContent = `${ASSET.category_ar || ""} · ${ASSET.type} · ${ASSET.street === "main" ? "شارع رئيسي" : "شارع فرعي"}${ASSET.cabinet ? " · خزانة " + ASSET.cabinet : ""} · احتمال العطل ${ASSET.p == null ? "—" : Math.round(ASSET.p * 100) + "%"}`;
+  if (ASSET.symptoms) { $("#symptoms").innerHTML = ASSET.symptoms.map((s) => `<button data-c="${s.code}">${s.ar}</button>`).join(""); SYM = null; }
   $("#aTask").innerHTML = ASSET.task ? `<p><span class="badge info">مهمة الأسبوع: ${ASSET.task.action_ar}</span> <span class="badge">${ASSET.task.status}</span></p><p class="muted">${ASSET.task.reason || ""}</p>` : `<p class="muted">ليس في قائمة الأسبوع · ${ASSET.last_symptom ? "آخر علامة: " + ASSET.last_symptom.ar + " (" + ASSET.last_symptom.at.slice(0, 10) + ")" : "لا علامات سابقة"}</p>`;
   $("#outcomeBox").hidden = !(ASSET.task && ASSET.task.status !== "done");
   window.scrollTo({ top: $("#asset").offsetTop - 60, behavior: "smooth" });

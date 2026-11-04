@@ -79,4 +79,17 @@ def get_db() -> Iterator[Session]:
 def create_all() -> None:
     from . import models  # noqa: F401  (register tables)
 
-    Base.metadata.create_all(get_engine())
+    eng = get_engine()
+    Base.metadata.create_all(eng)
+    _migrate(eng)
+
+
+def _migrate(eng) -> None:
+    """Additive migrations for databases created by earlier versions (Alembic comes with the production stack)."""
+    from sqlalchemy import inspect, text
+    cols = {c["name"] for c in inspect(eng).get_columns("ops_asset")}
+    if "category" not in cols:
+        with eng.begin() as con:
+            con.execute(text("ALTER TABLE ops_asset ADD COLUMN category VARCHAR(16) DEFAULT 'lighting'"))
+            con.execute(text("UPDATE ops_asset SET category = CASE WHEN asset_type IN ('PMP','PNL','VLV') THEN 'pumping' "
+                             "WHEN asset_type IN ('ELV','ESC','LFT') THEN 'elevators' WHEN asset_type IN ('PAV','RMP','CRS') THEN 'pavement' ELSE 'lighting' END"))

@@ -76,6 +76,22 @@ action    = inspect (< 0.35) · service (0.35–0.70) · replace (≥ 0.70 or be
 ```
 Every parameter is in `.env` (`baseera/core/config.py`) to be calibrated from the survey and mentor sessions.
 
+## Asset categories (the whole challenge, one platform)
+
+The challenge names four urban-asset families; the platform carries all four through the same pipeline. `baseera/core/catalog.py`
+is the single source of truth: types, kinds, design life, planned cost, consequence weight, symptom vocabulary and failure modes
+(class A/B/C and warning lead L) per category. Nothing else hard-codes a type.
+
+| Category | Types | Failure modes (L days) | Status |
+|---|---|---|---|
+| Lighting (pilot) | LED · HAL · SOL · CAB | led_driver 7 · lamp_eol 3 · cabinet 14 · cable_joint 7 · solar_battery 7 · collision 2 | full physics in the simulator, field calibration |
+| Pumping stations | PMP · PNL · VLV | bearing_wear 10 · seal_leak 7 · motor_winding 14 · panel_fault 14 · intake_blockage 3 | ready end to end; simplified simulation (`sim/generic.py`) until municipal exports |
+| Elevators / escalators | ELV · ESC · LFT | door_mechanism 7 · drive_motor 14 · controller 14 · rope_wear 21 · sensor 3 | same |
+| Pavements / crossings | PAV · RMP · CRS | subsidence 30 · tile_failure 14 · drainage 14 · impact 2 | same |
+
+`GET /api/admin/catalog` returns the catalogue; the technician PWA shows the symptom list of the scanned asset's category; the
+supervisor app filters every view by category and the backtest reports PFR@L per category.
+
 ## Admin panel — data in, results out
 
 Everything an operator needs without touching a terminal (role `admin`; `manager` and `supervisor` read-only):
@@ -115,7 +131,9 @@ tests/              conftest (small simulation) · test_ingest · test_pipeline 
 docs/               adr/ · security.md · runbook.md
 ```
 
-## Status (v0.2.0, 2 Nov 2026)
+## Status (v0.3.0, 4 Nov 2026)
+
+* v0.3.0 — four asset categories (lighting, pumping, elevators, pavements) through one catalogue; category filters, catalogue tab, per-category backtest; simplified simulation for the non-pilot categories.
 
 * v0.2.0 — admin data panel (upload + preview + quarantine + manual records), runtime parameters, background jobs, new design system, Railway/Render deployment files; 25 tests.
 * v0.1.0 — five-layer prototype.

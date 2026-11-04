@@ -12,11 +12,11 @@ from dataclasses import dataclass
 
 import pandas as pd
 
+from ...core.catalog import consequence_units_of, design_life, is_node
 from ...core.config import get_settings
 
 CRIT_W = {"none": 1.0, "mosque": 1.6, "school": 2.0, "crossing": 2.4, "hospital": 3.0}
 ROAD_W = {"main": 1.8, "sec": 1.0}
-DESIGN_LIFE_Y = {"LED": 12.0, "HAL": 8.0, "SOL": 8.0, "CAB": 20.0}
 ACTION_AR = {"inspect": "فحص", "service": "صيانة", "replace": "استبدال"}
 GROUP_AR = {"symptoms": "أعراض مرصودة على الأصل", "network": "انقطاعات جزئية على نفس الدائرة", "weather": "الحرارة والأمطار",
             "history": "سجل الأعطال السابقة", "asset": "عمر الأصل ونوعه"}
@@ -33,20 +33,20 @@ class RankedAsset:
     reason: str
 
 
-def consequence_units(street_class: str, criticality: str, kind: str) -> float:
-    return ROAD_W.get(street_class, 1.0) * CRIT_W.get(criticality, 1.0) * (40.0 if kind == "cabinet" else 1.0)
+def consequence_units(street_class: str, criticality: str, kind: str, asset_type: str = "LED") -> float:
+    return ROAD_W.get(street_class, 1.0) * CRIT_W.get(criticality, 1.0) * consequence_units_of(asset_type)
 
 
 def planned_cost(asset_type: str) -> float:
     return float(get_settings().cost_planned.get(asset_type, 650))
 
 
-def is_critical(street_class: str, criticality: str, kind: str) -> bool:
-    return kind == "cabinet" or criticality in {"crossing", "hospital", "school"}
+def is_critical(street_class: str, criticality: str, kind: str, asset_type: str = "LED") -> bool:
+    return is_node(asset_type) or criticality in {"crossing", "hospital", "school"}
 
 
 def action_for(p: float, age_y: float, asset_type: str) -> str:
-    if p >= 0.70 or age_y > DESIGN_LIFE_Y.get(asset_type, 12.0):
+    if p >= 0.70 or age_y > design_life(asset_type):
         return "replace"
     if p >= 0.35:
         return "service"
@@ -70,11 +70,11 @@ def score_frame(df: pd.DataFrame) -> pd.DataFrame:
     s = get_settings()
     out = df.copy()
     cost = out.asset_type.map(planned_cost)
-    cof = [consequence_units(r, c, k) for r, c, k in zip(out.street_class, out.criticality, out.kind)]
+    cof = [consequence_units(r, c, k, t) for r, c, k, t in zip(out.street_class, out.criticality, out.kind, out.asset_type)]
     out["risk_sar"] = out.p_fail * (cost * (s.emergency_multiplier - 1) + pd.Series(cof, index=out.index) * s.consequence_sar_per_unit)
     out["priority"] = out.risk_sar * s.intervention_efficacy / cost
     out["action"] = [action_for(p, a, t) for p, a, t in zip(out.p_fail, out.age_y, out.asset_type)]
-    out["critical"] = [is_critical(r, c, k) for r, c, k in zip(out.street_class, out.criticality, out.kind)]
+    out["critical"] = [is_critical(r, c, k, t) for r, c, k, t in zip(out.street_class, out.criticality, out.kind, out.asset_type)]
     return out
 
 

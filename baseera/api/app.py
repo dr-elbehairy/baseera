@@ -27,7 +27,7 @@ def _recover_jobs(db) -> None:
 
 def create_app() -> FastAPI:
     s = get_settings()
-    app = FastAPI(title="Baseera — Predictive Maintenance for Urban Assets", version="0.2.0",
+    app = FastAPI(title="Baseera — Predictive Maintenance for Urban Assets", version="0.3.0",
                   description="بصيرة: سجل قابلية التنبؤ وقائمة الأسبوع لصيانة الأصول الحضرية", docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
     for r in (auth, assets, lists, field, ledger, admin):

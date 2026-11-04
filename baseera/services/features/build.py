@@ -15,14 +15,14 @@ import pandas as pd
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from ...core.catalog import CATEGORY_CODE, TYPE_CODE, is_node
 from ...core.config import get_settings
 from ...core.models import Asset, AssetWeek, Cabinet, FailureEvent, Observation, WeatherDay
 
-FEATURES = ["age_y", "type_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y",
+FEATURES = ["age_y", "type_code", "category_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y",
             "days_since_last_fail", "fails_365d", "cabinet_fails_365d",
             "symptoms_14d", "symptoms_30d", "max_sev_30d", "circuit_partial_trips_14d",
             "tmax_14d", "tmax_fcst_7d", "rain_7d", "rain_30d", "dust_30d", "heat_load_120d"]
-TYPE_CODE = {"LED": 0, "HAL": 1, "SOL": 2, "CAB": 3}
 CRIT_W = {"none": 1.0, "mosque": 1.6, "school": 2.0, "crossing": 2.4, "hospital": 3.0}
 
 
@@ -36,7 +36,7 @@ def week_starts_between(start: date, end: date) -> list[date]:
 
 
 def load_frames(db: Session, run_tag: str = "live") -> dict[str, pd.DataFrame]:
-    A = pd.DataFrame([dict(asset_id=a.asset_id, asset_code=a.asset_code, asset_type=a.asset_type, kind=a.kind, street_class=a.street_class,
+    A = pd.DataFrame([dict(asset_id=a.asset_id, asset_code=a.asset_code, asset_type=a.asset_type, category=a.category, kind=a.kind, street_class=a.street_class,
                            criticality=a.criticality, install_date=a.install_date, cabinet_id=a.cabinet_id, lon=a.lon, lat=a.lat)
                       for a in db.query(Asset).filter(Asset.active.is_(True)).all()])
     C = pd.DataFrame([dict(cabinet_id=c.cabinet_id, cab_install=c.install_date) for c in db.query(Cabinet).all()])
@@ -118,8 +118,8 @@ def build_features(db: Session, as_of: date, weeks: list[date] | None = None, ho
                 if a in idx: label[idx[a]] = 1
         for i in range(n):
             a = A.asset_id.iloc[i]
-            x = dict(age_y=round(float(age[i]), 2), type_code=TYPE_CODE[A.asset_type.iloc[i]], main_road=int(A.street_class.iloc[i] == "main"),
-                     is_cabinet=int(A.kind.iloc[i] == "cabinet"), crit_w=CRIT_W.get(A.criticality.iloc[i], 1.0), cabinet_age_y=round(float(cage[i]), 2),
+            x = dict(age_y=round(float(age[i]), 2), type_code=TYPE_CODE[A.asset_type.iloc[i]], category_code=CATEGORY_CODE.get(A.category.iloc[i], 0),
+                     main_road=int(A.street_class.iloc[i] == "main"), is_cabinet=int(is_node(A.asset_type.iloc[i])), crit_w=CRIT_W.get(A.criticality.iloc[i], 1.0), cabinet_age_y=round(float(cage[i]), 2),
                      days_since_last_fail=float(dsl[i]), fails_365d=float(fails_arr[i]), cabinet_fails_365d=float(cab_f[i]),
                      symptoms_14d=float(s14.get(a, 0)), symptoms_30d=float(s30.get(a, 0)), max_sev_30d=float(mx30.get(a, 0)),
                      circuit_partial_trips_14d=float(circuit[i]), tmax_14d=round(tmax14, 2), tmax_fcst_7d=round(tfc, 2),

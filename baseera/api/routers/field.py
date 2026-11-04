@@ -11,20 +11,19 @@ from ...core.db import get_db
 from ...core.models import Asset, ListItem, Observation, Outcome, Prediction, User, WeeklyList
 from ...core.security import audit, require
 from ...services.ingest.base import normalise_code
-from ...services.ingest.pipelines.core import SYMPTOMS
+from ...core.catalog import CATEGORIES, SYMPTOM_AR, SYMPTOM_CODES as SYMPTOMS, symptoms_for
 from ...services.decision.rank import ACTION_AR
 from sqlalchemy import func
 
 router = APIRouter(prefix="/field", tags=["field"])
 
-SYMPTOM_AR = {"flicker": "وميض", "cycling": "إشعال وانطفاء متكرر", "dim": "إضاءة خافتة", "partial_trip": "انقطاع جزئي على الدائرة",
-              "intermittent": "انقطاع متقطع", "noise": "صوت/طنين", "heat": "حرارة غير طبيعية", "rust": "صدأ/تآكل", "tilt": "ميل العمود", "other": "أخرى"}
 FINDINGS = {"confirmed_degradation", "no_issue", "already_failed", "inaccessible"}
 
 
 @router.get("/symptoms")
-def symptoms():
-    return [dict(code=c, ar=SYMPTOM_AR[c]) for c in SYMPTOM_AR]
+def symptoms(category: str | None = None):
+    """Symptom vocabulary; with ?category= only that category's symptoms plus the generic ones."""
+    return symptoms_for(category)
 
 
 @router.get("/assets/{code}")
@@ -40,7 +39,8 @@ def by_code(code: str, db: Session = Depends(get_db), u: User = Depends(require(
             item = next((i for i in wl.items if i.asset_id == a.asset_id), None)
     p = db.query(Prediction).filter_by(asset_id=a.asset_id, week_start=wk, run_tag="live").first() if wk else None
     last = db.query(Observation).filter_by(asset_id=a.asset_id).order_by(Observation.observed_at.desc()).first()
-    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, kind=a.kind, street=a.street_class, crit=a.criticality,
+    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, category_ar=CATEGORIES.get(a.category, {}).get("ar"),
+                kind=a.kind, street=a.street_class, crit=a.criticality, symptoms=symptoms_for(a.category),
                 cabinet=a.cabinet.cabinet_code if a.cabinet else None, p=(round(p.p_fail, 3) if p else None),
                 task=(dict(item_id=item.item_id, action=item.action, action_ar=ACTION_AR.get(item.action), status=item.status, reason=item.reason) if item else None),
                 last_symptom=(dict(code=last.symptom_code, ar=SYMPTOM_AR.get(last.symptom_code), at=last.observed_at.isoformat()) if last else None))
@@ -110,6 +110,6 @@ def my_tasks(db: Session = Depends(get_db), u: User = Depends(require("technicia
         return []
     wl = db.query(WeeklyList).filter_by(week_start=wk, run_tag="live").first()
     A = {a.asset_id: a for a in db.query(Asset).filter(Asset.asset_id.in_([i.asset_id for i in wl.items])).all()} if wl.items else {}
-    return [dict(item_id=i.item_id, rank=i.rank, code=A[i.asset_id].asset_code, type=A[i.asset_id].asset_type, lon=A[i.asset_id].lon, lat=A[i.asset_id].lat,
+    return [dict(item_id=i.item_id, rank=i.rank, code=A[i.asset_id].asset_code, type=A[i.asset_id].asset_type, category=A[i.asset_id].category, lon=A[i.asset_id].lon, lat=A[i.asset_id].lat,
                  action=i.action, action_ar=ACTION_AR.get(i.action), status=i.status, reason=i.reason)
             for i in sorted(wl.items, key=lambda x: x.rank) if i.status in ("approved", "proposed")]

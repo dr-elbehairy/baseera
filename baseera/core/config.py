@@ -10,6 +10,8 @@ from typing import List
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from .catalog import default_costs, default_leads
+
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_prefix="BASEERA_", extra="ignore")
@@ -30,15 +32,14 @@ class Settings(BaseSettings):
     horizon_days: int = 14                    # model target: failure within H days
     lead_days: List[int] = Field(default_factory=lambda: [2, 7, 14])   # L values reported in the ledger
     lead_default: int = 7                     # L used when the failure mode is unknown
-    lead_by_mode: dict = Field(default_factory=lambda: {
-        "lamp_eol": 3, "led_driver": 7, "cabinet": 14, "cable_joint": 7, "solar_battery": 7, "collision": 2})
+    lead_by_mode: dict = Field(default_factory=default_leads)   # per failure mode, all categories (core/catalog.py)
     crew_jobs_per_week: int = 30              # planned interventions the sector crew absorbs weekly
     alert_probability: float = 0.10           # an asset enters the list only above this calibrated probability
     emergency_multiplier: float = 2.0         # emergency repair cost / planned repair cost
     consequence_sar_per_unit: float = 400.0   # social/safety cost of one dark pole-equivalent (secondary street)
     intervention_efficacy: float = 0.85       # share of predictable failures averted when serviced in time
     match_radius_m: float = 25.0              # spatial matching radius for reports without an asset code
-    cost_planned: dict = Field(default_factory=lambda: {"LED": 650, "HAL": 220, "SOL": 900, "CAB": 6500})
+    cost_planned: dict = Field(default_factory=default_costs)   # per asset type, all categories (core/catalog.py)
     critical_min_action: str = "inspect"      # critical assets never drop below a scheduled inspection
 
     # --- model gates (a new version is promoted only if all pass)

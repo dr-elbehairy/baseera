@@ -7,14 +7,14 @@ from typing import Optional
 import pandas as pd
 from pydantic import BaseModel, field_validator
 
+from ....core.catalog import ASSET_TYPES, MODE_CODES, SYMPTOM_CODES, category_of, kind_of
 from ....core.models import Asset, Cabinet, Observation, Report, WeatherDay, WorkOrder
 from ..base import Pipeline, RowError, normalise_code, opt_dt, reporter_hash, to_dt
 from ..match import AssetMatcher
 
-ASSET_TYPES = {"LED", "HAL", "SOL", "CAB"}
 STREET = {"main", "sec"}
 CRIT = {"none", "mosque", "school", "crossing", "hospital"}
-SYMPTOMS = {"flicker", "cycling", "dim", "partial_trip", "intermittent", "noise", "heat", "rust", "tilt", "other"}
+SYMPTOMS = SYMPTOM_CODES
 REPORT_TYPES = {"dark", "flicker", "damage", "other"}
 
 
@@ -57,7 +57,7 @@ class CabinetPipeline(Pipeline):
 class AssetRow(BaseModel):
     asset_code: str
     asset_type: str
-    kind: str = "pole"
+    kind: Optional[str] = None
     street_class: str = "sec"
     criticality: str = "none"
     lon: float
@@ -127,7 +127,8 @@ class AssetPipeline(Pipeline):
             if cab is None:
                 raise RowError(f"unknown cabinet_code {row.cabinet_code!r} (load cabinets first)")
         a = self.db.query(Asset).filter_by(asset_code=row.asset_code).first() or Asset(asset_code=row.asset_code)
-        a.asset_type, a.kind, a.street_class, a.criticality = row.asset_type, row.kind, row.street_class, row.criticality
+        a.asset_type, a.kind, a.street_class, a.criticality = row.asset_type, (row.kind or kind_of(row.asset_type)), row.street_class, row.criticality
+        a.category = category_of(row.asset_type)
         a.lon, a.lat, a.install_date, a.owner_entity, a.source = row.lon, row.lat, inst, row.owner_entity, self.source
         a.cabinet_id = cab.cabinet_id if cab else None
         self.db.add(a)
@@ -197,6 +198,14 @@ class WorkOrderRow(BaseModel):
         if v not in {"emergency", "planned"}:
             raise ValueError("kind must be emergency|planned")
         return v
+
+    @field_validator("fault_code")
+    @classmethod
+    def _fc(cls, v):
+        v = (str(v).strip().lower() if v is not None else "")
+        if v and v not in MODE_CODES:
+            raise ValueError(f"fault_code must be one of {sorted(MODE_CODES)} (or empty)")
+        return v or None
 
     @field_validator("cost_sar")
     @classmethod

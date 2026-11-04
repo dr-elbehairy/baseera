@@ -16,6 +16,7 @@ import pandas as pd
 from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
+from ..core.catalog import CATEGORIES, MODE_AR, MODE_CLASS as CLASS
 from ..core.config import get_settings
 from ..core.models import Asset, FailureEvent, LedgerMonth, ListItem, Prediction, WeeklyList
 from .features.build import frame, week_starts_between
@@ -25,9 +26,6 @@ from .ledger.pfr import L_for, annotate_leads, leads_for_failures
 from .model.core import train
 from .plan import plan_week
 
-MODE_AR = {"led_driver": "تدهور مشغّل LED حراريًا", "lamp_eol": "نهاية عمر مصباح هالوجين/صوديوم", "cabinet": "عطل خزانة تغذية",
-           "cable_joint": "عطل كابل/وصلة بعد الأمطار", "solar_battery": "تراجع بطارية عمود شمسي", "collision": "صدمة مركبة أو تخريب"}
-CLASS = {"led_driver": "A", "lamp_eol": "A", "cabinet": "B", "cable_joint": "B", "solar_battery": "B", "collision": "C"}
 
 
 def _clear(db: Session) -> None:
@@ -89,6 +87,14 @@ def run_backtest(db: Session, split: date, end: date, out_path: str | None = Non
         by_mode.append(dict(mode=mode, mode_ar=MODE_AR.get(mode, mode), cls=CLASS.get(mode, "C"), n=int(m.sum()), L=L_for(mode),
                             pfr_L=round(float((lead_b[m] >= own_L[m]).mean()), 3), pfr7=round(float((lead_b[m] >= 7).mean()), 3),
                             median_lead=(float(np.median(lead_b[m][lead_b[m] >= 0])) if (lead_b[m] >= 0).any() else None)))
+    cat = np.array([A[f.asset_id].category for f in fails])
+    by_category = []
+    for c in CATEGORIES:
+        m = cat == c
+        if m.any():
+            by_category.append(dict(category=c, ar=CATEGORIES[c]["ar"], n=int(m.sum()), n_assets=sum(1 for a in A.values() if a.category == c),
+                                    pfr_L=round(float((lead_b[m] >= own_L[m]).mean()), 3), pfr_age=round(float((lead_a[m] >= own_L[m]).mean()), 3),
+                                    emergency_share=round(float(1 - averted_b[m].mean()), 3)))
     months = compute_months(db, run_tag="backtest")
     res = dict(
         model_version_id=mv.model_version_id, metrics=mv.metrics, gates=mv.gates, split=str(split), end=str(end), weeks=len(weeks),
@@ -102,7 +108,7 @@ def run_backtest(db: Session, split: date, end: date, out_path: str | None = Non
         cost=dict(reactive=int((cost_pl * s.emergency_multiplier).sum()),
                   baseera=int((cost_pl * (s.emergency_multiplier * (1 - averted_b) + averted_b)).sum())),
         lead_hist=dict(bins=["0–1", "2–6", "7–13", "14–20", "21–29", "30–45"], counts=np.histogram(lead_b[lead_b >= 0], bins=[0, 2, 7, 14, 21, 30, 46])[0].tolist()),
-        by_mode=sorted(by_mode, key=lambda r: (r["cls"], -r["n"])), class_counts={c: int((cls == c).sum()) for c in "ABC"},
+        by_mode=sorted(by_mode, key=lambda r: (r["cls"], -r["n"])), class_counts={c: int((cls == c).sum()) for c in "ABC"}, by_category=by_category,
         series=[dict(week=str(w), failures=int(sum(1 for f in fails if w <= f.failed_on < w + timedelta(days=7))),
                      anticipated=int(sum(1 for f, lb, L in zip(fails, lead_b, own_L) if w <= f.failed_on < w + timedelta(days=7) and lb >= L)),
                      listed=len(lists[w])) for w in weeks],

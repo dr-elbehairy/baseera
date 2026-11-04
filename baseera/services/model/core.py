@@ -27,7 +27,7 @@ from ..features.build import FEATURES, frame
 
 GROUPS = {"symptoms": ["symptoms_14d", "symptoms_30d", "max_sev_30d"], "network": ["circuit_partial_trips_14d", "cabinet_fails_365d"],
           "weather": ["tmax_14d", "tmax_fcst_7d", "rain_7d", "rain_30d", "dust_30d", "heat_load_120d"],
-          "history": ["days_since_last_fail", "fails_365d"], "asset": ["age_y", "type_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y"]}
+          "history": ["days_since_last_fail", "fails_365d"], "asset": ["age_y", "type_code", "category_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y"]}
 
 
 @dataclass
@@ -42,7 +42,7 @@ class Bundle:
 
 
 def _asset_frame(db: Session) -> pd.DataFrame:
-    return pd.DataFrame([dict(asset_id=a.asset_id, asset_code=a.asset_code, asset_type=a.asset_type, kind=a.kind, street_class=a.street_class,
+    return pd.DataFrame([dict(asset_id=a.asset_id, asset_code=a.asset_code, asset_type=a.asset_type, category=a.category, kind=a.kind, street_class=a.street_class,
                               criticality=a.criticality) for a in db.query(Asset).filter(Asset.active.is_(True)).all()])
 
 

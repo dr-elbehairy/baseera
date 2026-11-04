@@ -23,7 +23,7 @@ def test_reporter_identity_is_hashed_not_stored():
 
 def test_simulated_seed_went_through_pipelines(db_ready):
     runs = db_ready["runs"]
-    assert runs["assets"]["quarantined"] == 0 and runs["assets"]["ok"] == 164
+    assert runs["assets"]["quarantined"] == 0 and runs["assets"]["ok"] == 164 + 270  # 160 poles + 4 cabinets + 40 pumping + 30 elevators + 200 pavement
     assert runs["reports"]["ok"] > 0
     # ~30% of simulated reports carry no code and must be matched spatially (≤ 25 m)
     with session_scope() as db:

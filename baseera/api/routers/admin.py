@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ...core import catalog as CAT
 from ...core import params as P
 from ...core.config import get_settings
 from ...core.db import get_db
@@ -54,8 +55,18 @@ def overview(db: Session = Depends(get_db), u: User = Depends(require("admin", "
                     gates={k: v["pass"] for k, v in mv.gates.items()}) if mv else None),
         weekly_list=(dict(week_start=str(wl.week_start), status=wl.status, items=len(wl.items)) if wl else None),
         last_job=(J.to_dict(job) if job else None),
+        categories=[dict(key=c, ar=v["ar"], status=v["status"], status_ar=v["status_ar"],
+                         n_assets=db.query(func.count()).select_from(Asset).filter_by(category=c).scalar(),
+                         n_failures=db.query(func.count()).select_from(FailureEvent).join(Asset, Asset.asset_id == FailureEvent.asset_id)
+                                      .filter(FailureEvent.run_tag == "live", Asset.category == c).scalar()) for c, v in CAT.CATEGORIES.items()],
         backtest_available=os.path.exists(os.path.join(get_settings().data_dir, "backtest.json")),
         env=get_settings().env)
+
+
+@router.get("/catalog")
+def catalog(u: User = Depends(require())):
+    """Asset categories, types, symptoms and failure modes the platform understands."""
+    return CAT.describe()
 
 
 # ----------------------------------------------------------------------------- ingestion

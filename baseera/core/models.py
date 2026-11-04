@@ -38,8 +38,9 @@ class Asset(Base):
     __tablename__ = "ops_asset"
     asset_id: Mapped[str] = mapped_column(String(32), primary_key=True, default=_uuid)
     asset_code: Mapped[str] = mapped_column(String(64), unique=True, index=True)
-    asset_type: Mapped[str] = mapped_column(String(16))          # LED | HAL | SOL | CAB
-    kind: Mapped[str] = mapped_column(String(16), default="pole")  # pole | cabinet (| pump | lift later)
+    asset_type: Mapped[str] = mapped_column(String(16))          # see core/catalog.py
+    category: Mapped[str] = mapped_column(String(16), default="lighting", index=True)  # lighting | pumping | elevators | pavement
+    kind: Mapped[str] = mapped_column(String(16), default="pole")  # pole | cabinet | pump | panel | valve | elevator | escalator | lift | segment | ramp | crossing
     street_class: Mapped[str] = mapped_column(String(16), default="sec")  # main | sec
     criticality: Mapped[str] = mapped_column(String(16), default="none")  # none|mosque|school|crossing|hospital
     lon: Mapped[float] = mapped_column(Float, index=True)
