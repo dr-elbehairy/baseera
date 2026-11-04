@@ -147,6 +147,11 @@ def cmd_demo(a):
     print("done. run `baseera serve` and open http://localhost:8000 (supervisor/demo) or /field (technician/demo)")
 
 
+def cmd_glossary(a):
+    from .core.catalog import describe, glossary
+    print(json.dumps(dict(categories=describe(), glossary=glossary()), ensure_ascii=False, indent=1))
+
+
 def cmd_serve(a):
     import uvicorn
     uvicorn.run("baseera.api.app:app", host=a.host, port=a.port, reload=a.reload)
@@ -171,6 +176,7 @@ def main(argv=None):
     s.add_argument("--poles", type=int, default=1200); s.add_argument("--cabinets", type=int, default=24); s.add_argument("--days", type=int, default=736)
     s.add_argument("--seed", type=int, default=2026); s.add_argument("--vis-main", type=float, default=0.70); s.add_argument("--vis-sec", type=float, default=0.55)
     s.set_defaults(f=cmd_demo)
+    sp.add_parser("glossary").set_defaults(f=cmd_glossary)
     s = sp.add_parser("serve"); s.add_argument("--host", default="0.0.0.0"); s.add_argument("--port", type=int, default=8000); s.add_argument("--reload", action="store_true")
     s.set_defaults(f=cmd_serve)
     a = p.parse_args(argv)

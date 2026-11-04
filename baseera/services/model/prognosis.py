@@ -17,7 +17,7 @@ import pandas as pd
 from sklearn.ensemble import GradientBoostingRegressor
 from sqlalchemy.orm import Session
 
-from ...core.catalog import CHANNELS, EVIDENCE, MODES, TYPES
+from ...core.catalog import CHANNELS, EVIDENCE, MODES, SYMPTOM_AR, TYPES
 from ...core.config import get_settings
 from ...core.models import FailureEvent, Observation, TelemetryDay
 from ..features.build import FEATURES
@@ -99,7 +99,7 @@ def diagnose(db: Session, asset_id: str, asset_type: str, category: str, as_of: 
     for o in obs:
         for m, w in EVIDENCE.get(o.symptom_code, {}).items():
             if m in scores: scores[m] += w * o.severity
-        if o.symptom_code in EVIDENCE: ev.append(dict(kind="symptom", code=o.symptom_code, at=str(o.observed_at.date()), weight=o.severity))
+        if o.symptom_code in EVIDENCE: ev.append(dict(kind="symptom", code=o.symptom_code, ar=SYMPTOM_AR.get(o.symptom_code, o.symptom_code), at=str(o.observed_at.date()), weight=o.severity))
     tele = db.query(TelemetryDay).filter(TelemetryDay.asset_id == asset_id, TelemetryDay.day <= as_of).order_by(TelemetryDay.day).all()
     if tele:
         T = pd.DataFrame([dict(day=t.day, ch=t.channel, v=t.value) for t in tele])
@@ -110,7 +110,7 @@ def diagnose(db: Session, asset_id: str, asset_type: str, category: str, as_of: 
             if z > 2.0:
                 for m, w in EVIDENCE.get(ch, {}).items():
                     if m in scores: scores[m] += w * min(z, 8) / 2
-                ev.append(dict(kind="channel", code=ch, z=round(float(z), 1), last=round(float(last), 2), baseline=round(float(mu), 2)))
+                ev.append(dict(kind="channel", code=ch, ar=CHANNELS[ch][1], unit=CHANNELS[ch][2], z=round(float(z), 1), last=round(float(last), 2), baseline=round(float(mu), 2)))
     if not scores:
         return dict(mode=None, confidence=0.0, evidence=ev)
     total = sum(scores.values())

@@ -66,8 +66,14 @@ def overview(db: Session = Depends(get_db), u: User = Depends(require("admin", "
 
 @router.get("/catalog")
 def catalog(u: User = Depends(require())):
-    """Asset categories, types, symptoms and failure modes the platform understands."""
+    """Asset categories, types, symptoms, failure modes and telemetry channels the platform understands."""
     return CAT.describe()
+
+
+@router.get("/glossary")
+def glossary(u: User = Depends(require())):
+    """Arabic definitions of every code the platform shows: prefixes, kinds, classes A/B/C, tiers, actions, statuses, sources, metrics, channels, parts."""
+    return CAT.glossary()
 
 
 # ----------------------------------------------------------------------------- ingestion

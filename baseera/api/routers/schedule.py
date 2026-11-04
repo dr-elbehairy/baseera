@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from ...core.catalog import CATEGORIES, MODES
+from ...core.catalog import CATEGORIES, MODES, TYPES
 from ...core.config import get_settings
 from ...core.db import get_db
 from ...core.models import Asset, ListItem, Prediction, User, WeeklyList, WorkOrder
@@ -34,7 +34,7 @@ def current(db: Session = Depends(get_db), u: User = Depends(require("supervisor
     items = []
     for i in sorted(wl.items, key=lambda x: (x.route or 99, x.seq or 99, x.rank)):
         a = A[i.asset_id]; p = P.get(i.asset_id)
-        items.append(dict(item_id=i.item_id, rank=i.rank, code=a.asset_code, category=a.category, category_ar=CATEGORIES[a.category]["ar"], type=a.asset_type, lon=a.lon, lat=a.lat,
+        items.append(dict(item_id=i.item_id, rank=i.rank, code=a.asset_code, category=a.category, category_ar=CATEGORIES[a.category]["ar"], type=a.asset_type, type_ar=TYPES[a.asset_type][1], lon=a.lon, lat=a.lat,
                           crit=a.criticality, p=round(i.p_fail, 3), risk_sar=round(i.risk_sar), cost=float(s.cost_planned.get(a.asset_type, 650)) * (s.rideby_cost_share if i.grouped else 1),
                           return_per_riyal=round(i.risk_sar * s.intervention_efficacy / (float(s.cost_planned.get(a.asset_type, 650)) * (s.rideby_cost_share if i.grouped else 1)), 2),
                           action=i.action, action_ar=ACTION_AR.get(i.action), tier=i.tier, tier_ar=TIER_AR.get(i.tier or "planned"), route=i.route, seq=i.seq, grouped=i.grouped,

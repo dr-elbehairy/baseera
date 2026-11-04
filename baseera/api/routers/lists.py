@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...core.db import get_db
+from ...core.catalog import TYPES
 from ...core.models import Asset, Prediction, ListItem, Outcome, User, WeeklyList
 from ...core.security import audit, require
 from ...services.decision.rank import ACTION_AR
@@ -24,7 +25,7 @@ def _serialise(db: Session, wl: WeeklyList) -> dict:
     return dict(list_id=wl.list_id, week_start=str(wl.week_start), status=wl.status, capacity=wl.capacity, used=used, run_tag=wl.run_tag,
                 model_version_id=wl.model_version_id, items=[
                     dict(item_id=i.item_id, rank=i.rank, asset_id=i.asset_id, code=A[i.asset_id].asset_code if i.asset_id in A else None,
-                         type=A[i.asset_id].asset_type if i.asset_id in A else None, category=A[i.asset_id].category if i.asset_id in A else None, street=A[i.asset_id].street_class if i.asset_id in A else None,
+                         type=A[i.asset_id].asset_type if i.asset_id in A else None, type_ar=(TYPES[A[i.asset_id].asset_type][1] if i.asset_id in A else None), category=A[i.asset_id].category if i.asset_id in A else None, street=A[i.asset_id].street_class if i.asset_id in A else None,
                          crit=A[i.asset_id].criticality if i.asset_id in A else None, lon=A[i.asset_id].lon if i.asset_id in A else None,
                          lat=A[i.asset_id].lat if i.asset_id in A else None, action=i.action, action_ar=ACTION_AR.get(i.action, i.action),
                          p=round(i.p_fail, 4), risk_sar=round(i.risk_sar, 1), reason=i.reason, status=i.status, override_reason=i.override_reason,

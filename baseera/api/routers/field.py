@@ -11,7 +11,7 @@ from ...core.db import get_db
 from ...core.models import Asset, ListItem, Observation, Outcome, Prediction, User, WeeklyList, WorkOrder
 from ...core.security import audit, require
 from ...services.ingest.base import normalise_code
-from ...core.catalog import CATEGORIES, SYMPTOM_AR, SYMPTOM_CODES as SYMPTOMS, symptoms_for
+from ...core.catalog import CATEGORIES, SYMPTOM_AR, SYMPTOM_CODES as SYMPTOMS, TYPES, symptoms_for
 from ...services.decision.rank import ACTION_AR
 from sqlalchemy import func
 
@@ -40,11 +40,11 @@ def by_code(code: str, db: Session = Depends(get_db), u: User = Depends(require(
     p = db.query(Prediction).filter_by(asset_id=a.asset_id, week_start=wk, run_tag="live").first() if wk else None
     last = db.query(Observation).filter_by(asset_id=a.asset_id).order_by(Observation.observed_at.desc()).first()
     return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, category_ar=CATEGORIES.get(a.category, {}).get("ar"),
-                kind=a.kind, street=a.street_class, crit=a.criticality, symptoms=symptoms_for(a.category),
+                type_ar=TYPES[a.asset_type][1], kind=a.kind, street=a.street_class, crit=a.criticality, symptoms=symptoms_for(a.category),
                 cabinet=a.cabinet.cabinet_code if a.cabinet else None, p=(round(p.p_fail, 3) if p else None),
                 task=(dict(item_id=item.item_id, action=item.action, action_ar=ACTION_AR.get(item.action), status=item.status, reason=item.reason, tier=item.tier, safe_window=item.safe_window,
                            work_order=(db.query(WorkOrder).filter_by(item_id=item.item_id).first().details if db.query(WorkOrder).filter_by(item_id=item.item_id).first() else None)) if item else None),
-                last_symptom=(dict(code=last.symptom_code, ar=SYMPTOM_AR.get(last.symptom_code), at=last.observed_at.isoformat()) if last else None))
+                last_symptom=(dict(code=last.symptom_code, ar=SYMPTOM_AR.get(last.symptom_code, last.symptom_code), at=last.observed_at.isoformat()) if last else None))
 
 
 class ObservationIn(BaseModel):

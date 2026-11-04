@@ -6,6 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ...core.catalog import MODES, SOURCE_AR, SYMPTOM_AR, TYPES
 from ...core.db import get_db
 from ...core.models import Asset, FailureEvent, ListItem, Observation, Prediction, User, WeeklyList, WorkOrder
 from ...core.security import require
@@ -63,12 +64,12 @@ def asset_card(asset_id: str, db: Session = Depends(get_db), u: User = Depends(r
         wl = db.query(WeeklyList).filter_by(week_start=wk, run_tag="live").first()
         if wl:
             item = next((i for i in wl.items if i.asset_id == a.asset_id), None)
-    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
+    return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, type_ar=TYPES[a.asset_type][1], category=a.category, kind=a.kind, street=a.street_class, crit=a.criticality, lon=a.lon, lat=a.lat,
                 install=str(a.install_date) if a.install_date else None, cabinet=a.cabinet.cabinet_code if a.cabinet else None, owner=a.owner_entity,
                 source=a.source, week_start=str(wk) if wk else None,
                 prediction=(dict(p=round(p.p_fail, 4), risk_sar=round(p.risk_sar, 1), priority=round(p.priority, 4), explanation=p.explanation,
                                  model_version_id=p.model_version_id, tier=p.tier, mode=p.mode_pred, window=([p.window_lo, p.window_hi] if p.window_lo is not None else None), cof=p.cof) if p else None),
                 list_item=(dict(item_id=item.item_id, rank=item.rank, action=item.action, status=item.status, reason=item.reason) if item else None),
-                observations=[dict(at=o.observed_at.isoformat(), symptom=o.symptom_code, severity=o.severity, source=o.source) for o in obs],
-                failures=[dict(on=str(f.failed_on), mode=f.failure_mode, lead=f.lead_days, warned=f.had_warning_at_L, dark=f.days_dark) for f in fails],
+                observations=[dict(at=o.observed_at.isoformat(), symptom=o.symptom_code, symptom_ar=SYMPTOM_AR.get(o.symptom_code, o.symptom_code), severity=o.severity, source=o.source, source_ar=SOURCE_AR.get(o.source, o.source)) for o in obs],
+                failures=[dict(on=str(f.failed_on), mode=f.failure_mode, mode_ar=(MODES[f.failure_mode][1] if f.failure_mode in MODES else None), lead=f.lead_days, warned=f.had_warning_at_L, dark=f.days_dark) for f in fails],
                 work_orders=[dict(opened=w.opened_at.isoformat(), kind=w.kind, fault=w.fault_code, cost=w.cost_sar) for w in wos])

@@ -12,7 +12,7 @@ from dataclasses import dataclass
 
 import pandas as pd
 
-from ...core.catalog import consequence_units_of, design_life, is_node
+from ...core.catalog import SYMPTOM_AR, consequence_units_of, design_life, is_node
 from ...core.config import get_settings
 
 CRIT_W = {"none": 1.0, "mosque": 1.6, "school": 2.0, "crossing": 2.4, "hospital": 3.0}
@@ -59,7 +59,7 @@ def reason_line(explanation: dict | None, last_symptom: str | None, days_since_f
         top = sorted(explanation.items(), key=lambda kv: -kv[1])[:2]
         parts += [GROUP_AR.get(g, g) for g, v in top if v > 0.005]
     if last_symptom:
-        parts.append(f"آخر علامة: {last_symptom}")
+        parts.append(f"آخر علامة: {SYMPTOM_AR.get(last_symptom, last_symptom)}")
     if days_since_fail is not None and days_since_fail < 999:
         parts.append(f"آخر عطل قبل {int(days_since_fail)} يومًا")
     return " · ".join(parts) or "احتمال مرتفع بحسب النموذج"

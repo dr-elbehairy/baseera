@@ -9,7 +9,7 @@ const fmt = (x, d = 0) => (x == null ? "—" : Number(x).toLocaleString("en", { 
 const pct = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const dt = (s) => (s ? s.replace("T", " ").slice(0, 16) : "—");
-const TITLES = { home: "لوحة المتابعة", week: "قائمة الأسبوع", map: "خريطة الخطر", schedule: "الجدولة والتحسين", twin: "التوأم الرقمي والإشارات", assistant: "مساعد بصيرة", ledger: "سجل قابلية التنبؤ", backtest: "الاختبار الرجعي", data: "البيانات والمدخلات", params: "معاملات التشغيل", ops: "التشغيل والمهام", method: "المنهجية" };
+const TITLES = { glossary: "دليل الرموز والمصطلحات", home: "لوحة المتابعة", week: "قائمة الأسبوع", map: "خريطة الخطر", schedule: "الجدولة والتحسين", twin: "التوأم الرقمي والإشارات", assistant: "مساعد بصيرة", ledger: "سجل قابلية التنبؤ", backtest: "الاختبار الرجعي", data: "البيانات والمدخلات", params: "معاملات التشغيل", ops: "التشغيل والمهام", method: "المنهجية" };
 const TIER_AR = { immediate: "فوري", urgent: "عاجل", planned: "مخطط", monitor: "مراقبة" };
 const tierBadge = (t) => t ? `<span class="tier ${t}">${TIER_AR[t] || t}</span>` : "";
 const winTxt = (w) => (w && w[0] != null) ? `اليوم ${w[0]}–${w[1]}` : "—";
@@ -60,7 +60,7 @@ function route() {
   $$("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + h));
   $("#title").textContent = TITLES[h] || ""; $("#crumbs").textContent = "بصيرة / " + (TITLES[h] || "");
   clearInterval(JOBPOLL);
-  ({ home: loadHome, week: loadWeek, map: () => loadAssets().then(drawMap), schedule: loadSchedule, twin: loadTwinView, assistant: loadAssistant, ledger: loadLedger, backtest: loadBacktest, data: loadData, params: loadParams, ops: loadOps }[h] || (() => {}))();
+  ({ glossary: () => loadGlossary($("#glossaryView")), home: loadHome, week: loadWeek, map: () => loadAssets().then(drawMap), schedule: loadSchedule, twin: loadTwinView, assistant: loadAssistant, ledger: loadLedger, backtest: loadBacktest, data: loadData, params: loadParams, ops: loadOps }[h] || (() => {}))();
 }
 
 /* ------------------------------------------------------------------ home */
@@ -97,7 +97,7 @@ async function loadWeek() {
   $("#approveAll").hidden = ME.role !== "supervisor" || CUR.status === "approved";
   $("#weekTable tbody").innerHTML = CUR.items.filter((i) => inCat(i.category)).map((i) => `<tr data-id="${i.item_id}" class="${i.status}">
     <td class="num">${i.rank}</td><td><a href="#map" data-asset="${i.asset_id}">${esc(i.code)}</a>${i.crit !== "none" ? ' <span class="crit">' + esc(CRIT_AR[i.crit] || i.crit) + "</span>" : ""}</td>
-    <td><span class="badge">${esc(CAT_AR[i.category] || i.category || "")}</span></td><td>${esc(i.type)}</td><td>${tierBadge(i.tier)}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
+    <td><span class="badge">${esc(CAT_AR[i.category] || i.category || "")}</span></td><td title="${esc(i.type_ar || "")}">${esc(i.type_ar || i.type)} <small class="muted mono">${esc(i.type)}</small></td><td>${tierBadge(i.tier)}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
     <td class="num small">${winTxt(i.window)}</td><td class="num">${fmt(i.risk_sar)}</td><td><b>${esc(i.action_ar)}</b></td><td class="small">${i.route ? `مسار ${i.route} · ${i.seq}${i.grouped ? " · تجميع" : ""}` : "—"}</td><td class="reason">${esc(i.reason)}<br><small class="muted">${esc(i.safe_window || "")}</small></td>
     <td>${statusAr(i)}</td><td class="actions">${ME.role === "supervisor" && i.status === "proposed" ? `<button class="btn sm" data-act="approved">اعتماد</button><button class="btn ghost sm" data-act="overridden">تجاوز</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="13"><div class="empty">لا أصول فوق عتبة الإنذار هذا الأسبوع في هذه الفئة</div></td></tr>';
   const sumRisk = CUR.items.reduce((s, i) => s + i.risk_sar, 0);
@@ -145,17 +145,18 @@ $("#map").addEventListener("click", (e) => {
 document.addEventListener("click", (e) => { const a = e.target.closest("a[data-asset]"); if (a) setTimeout(() => showCard(a.dataset.asset), 60); });
 async function showCard(id) {
   const c = await api("/assets/" + id); const p = c.prediction, ex = p?.explanation || {};
-  $("#detail").innerHTML = `<h3>${esc(c.code)} <small class="muted">${esc(CAT_AR[c.category] || "")} · ${esc(c.type)} · ${c.street === "main" ? "رئيسي" : "فرعي"} · ${esc(CRIT_AR[c.crit] || "")}</small></h3>
+  $("#detail").innerHTML = `<h3>${esc(c.code)} <small class="muted">${esc(CAT_AR[c.category] || "")} · ${esc(c.type_ar || c.type)} · ${c.street === "main" ? "رئيسي" : "فرعي"} · ${esc(CRIT_AR[c.crit] || "")}</small></h3>
     <div class="kv" style="margin-top:8px"><span>الخزانة</span><b>${esc(c.cabinet || "—")}</b><span>التركيب</span><b>${esc(c.install || "—")}</b><span>الاحتمال 14 يومًا</span><b style="color:${riskColor(p?.p)}">${pct(p?.p, 1)}</b><span>الخطر (ر.س)</span><b>${fmt(p?.risk_sar)}</b><span>المصدر</span><b><span class="badge ${c.source === "simulated" ? "sim" : "ok"}">${c.source === "simulated" ? "محاكاة" : esc(c.source)}</span></b></div>
     ${p ? `<div class="row" style="margin-top:8px">${tierBadge(p.tier)} <span class="badge">نافذة العطل: ${winTxt(p.window)}</span> ${p.mode ? `<span class="badge">${esc(MODE_AR_OF(p.mode))}</span>` : ""} <a href="#twin" data-twin="${esc(c.code)}" class="small">التوأم والإشارات ←</a></div>` : ""}
     ${p && p.cof ? `<h4 style="margin-top:10px">العواقب المكافئة ${fmt(p.cof.total)} ر.س</h4>${cofBars(p.cof)}` : ""}
     ${c.list_item ? `<p style="margin-top:8px"><span class="badge info">في قائمة الأسبوع #${c.list_item.rank} · ${esc(c.list_item.action)} · ${esc(c.list_item.status)}</span></p><p class="reason">${esc(c.list_item.reason)}</p>` : ""}
     ${Object.keys(ex).length ? `<h4 style="margin-top:10px">لماذا هذا الاحتمال</h4><ul class="expl">${Object.entries(ex).sort((a, b) => b[1] - a[1]).map(([g, v]) => `<li><span>${esc(GROUP_AR[g] || g)}</span><i style="width:${Math.max(2, Math.abs(v) * 300)}px;background:${v >= 0 ? "#c0392b" : "#1f8a5b"}"></i>${(v * 100).toFixed(1)} نقطة</li>`).join("")}</ul>` : ""}
-    <h4 style="margin-top:10px">العلامات المسجّلة</h4>${c.observations.length ? `<ul class="plain">${c.observations.slice(0, 5).map((o) => `<li>${o.at.slice(0, 10)} · ${esc(o.symptom)} · شدة ${o.severity} · ${esc(o.source)}</li>`).join("")}</ul>` : '<p class="muted small">لا علامات</p>'}
-    <h4 style="margin-top:10px">الأعطال السابقة</h4>${c.failures.length ? `<ul class="plain">${c.failures.map((f) => `<li>${f.on} · ${esc(f.mode || "?")} · ${f.lead == null ? "بلا إنذار" : "إنذار قبل " + f.lead + " يومًا"}</li>`).join("")}</ul>` : '<p class="muted small">لا أعطال مسجّلة</p>'}
+    <h4 style="margin-top:10px">العلامات المسجّلة</h4>${c.observations.length ? `<ul class="plain">${c.observations.slice(0, 5).map((o) => `<li>${o.at.slice(0, 10)} · ${esc(o.symptom_ar || o.symptom)} · شدة ${o.severity} · ${esc(o.source_ar || o.source)}</li>`).join("")}</ul>` : '<p class="muted small">لا علامات</p>'}
+    <h4 style="margin-top:10px">الأعطال السابقة</h4>${c.failures.length ? `<ul class="plain">${c.failures.map((f) => `<li>${f.on} · ${esc(f.mode_ar || f.mode || "غير محدد")} · ${f.lead == null ? "بلا إنذار" : "إنذار قبل " + f.lead + " يومًا"}</li>`).join("")}</ul>` : '<p class="muted small">لا أعطال مسجّلة</p>'}
     <p class="muted small">النموذج <span class="mono">${esc((p?.model_version_id || "").slice(0, 8))}</span></p>`;
 }
 const GROUP_AR = { symptoms: "أعراض مرصودة على الأصل", network: "انقطاعات جزئية على الدائرة", weather: "الحرارة والأمطار", history: "سجل الأعطال السابقة", asset: "عمر الأصل ونوعه", telemetry: "إشارات الحساسات", environment: "الإجهاد البيئي والعمر المكافئ", graph: "الاعتماديات" };
+const CLASS_AR = { A: "أ · قابل للاستباق", B: "ب · بمهلة قصيرة", C: "ج · عشوائي/خفي" };
 const COF_AR = { service: "انقطاع الخدمة", safety: "السلامة", financial: "علاوة الطارئ", environment: "البيئة", reputation: "السمعة" };
 const MODE_AR_OF = (m) => { for (const c of CATALOG) { const x = c.modes.find((y) => y.code === m); if (x) return x.ar; } return m; };
 function cofBars(cof) { const mx = Math.max(...Object.keys(COF_AR).map((k) => cof[k] || 0), 1); return Object.entries(COF_AR).map(([k, ar]) => `<div class="cofrow"><span>${ar}</span><i style="width:${Math.max(2, (cof[k] || 0) / mx * 100)}%"></i><span class="num">${fmt(cof[k])}</span></div>`).join("") + (cof.n_dependents ? `<p class="small muted">${fmt(cof.n_dependents)} أصل يعتمد عليه${cof.season_boost && cof.season_boost !== 1 ? ` · موسم الأمطار ×${cof.season_boost}` : ""}</p>` : ""); }
@@ -173,7 +174,7 @@ async function loadSchedule() {
   $("#paretoChart").innerHTML = pts.length ? paretoChart(pts, SCH.budget) : '<div class="empty">لا منحنى بعد</div>';
   $("#routeNote").textContent = `المسار يُرتَّب بأقرب جار؛ المهام الموسومة «تجميع» أُضيفت لأنها ضمن 250 م من المسار بتكلفة تنقل شبه صفرية`;
   $("#routeList").innerHTML = SCH.routes.map((r, k) => `<div class="card" style="margin-bottom:8px;border-inline-start:4px solid ${ROUTE_COLORS[k % 5]}"><div class="hd"><h4>مسار ${r.route} · ${r.n} مهام · ${fmt(r.cost)} ر.س · خطورة ${fmt(r.risk)}</h4></div>
-    <table class="tbl">${r.items.map((i) => `<tr><td class="num">${i.seq}</td><td><a href="#twin" data-twin="${esc(i.code)}">${esc(i.code)}</a>${i.grouped ? ' <span class="badge sim">تجميع</span>' : ""}</td><td>${tierBadge(i.tier)}</td><td class="small">${esc(i.mode_ar || "")}</td><td class="num small">${winTxt(i.window)}</td><td class="num">${i.return_per_riyal}×</td><td class="small muted">${esc(i.safe_window)}</td><td>${i.work_order ? '<span class="badge ok">أمر عمل</span>' : (ME.role === "supervisor" || ME.role === "admin") ? `<button class="btn ghost sm" data-wo="${i.item_id}">أمر عمل</button>` : ""}</td></tr>`).join("")}</table></div>`).join("");
+    <table class="tbl">${r.items.map((i) => `<tr><td class="num">${i.seq}</td><td><a href="#twin" data-twin="${esc(i.code)}">${esc(i.code)}</a> <small class="muted">${esc(i.type_ar || "")}</small>${i.grouped ? ' <span class="badge sim">تجميع</span>' : ""}</td><td>${tierBadge(i.tier)}</td><td class="small">${esc(i.mode_ar || "")}</td><td class="num small">${winTxt(i.window)}</td><td class="num">${i.return_per_riyal}×</td><td class="small muted">${esc(i.safe_window)}</td><td>${i.work_order ? '<span class="badge ok">أمر عمل</span>' : (ME.role === "supervisor" || ME.role === "admin") ? `<button class="btn ghost sm" data-wo="${i.item_id}">أمر عمل</button>` : ""}</td></tr>`).join("")}</table></div>`).join("");
   drawRoutes();
 }
 function paretoChart(pts, budget) {
@@ -218,7 +219,7 @@ async function loadTwin(code) {
           <div class="spark" style="margin-top:6px">${spark(S.series, false)}</div></div>
         <div class="card"><div class="hd"><h3>التشخيص المتوقع</h3>${d.mode_ar ? `<span class="badge info">${esc(d.mode_ar)}</span>` : ""}</div>
           <p class="small text2">${d.basis === "evidence" ? `ثقة ${((d.confidence || 0) * 100).toFixed(0)}% من ${d.evidence.length} دليل` : "لا دليل مباشر؛ النمط الأرجح لنوع الأصل"}</p>
-          ${d.evidence && d.evidence.length ? `<ul class="plain">${d.evidence.map((e) => e.kind === "channel" ? `<li>إشارة ${esc(e.code)}: ${e.last} مقابل أساس ${e.baseline} (z ${e.z})</li>` : `<li>علامة ${esc(e.code)} في ${e.at} (شدة ${e.weight})</li>`).join("")}</ul>` : ""}</div>
+          ${d.evidence && d.evidence.length ? `<ul class="plain">${d.evidence.map((e) => e.kind === "channel" ? `<li>إشارة «${esc(e.ar || e.code)}»: ${e.last} ${esc(e.unit || "")} مقابل أساس ${e.baseline} (z ${e.z})</li>` : `<li>علامة «${esc(e.ar || e.code)}» في ${e.at} (شدة ${e.weight})</li>`).join("")}</ul>` : ""}</div>
         ${p && p.cof ? `<div class="card"><div class="hd"><h3>العواقب المترابطة</h3><span class="badge">${fmt(p.cof.total)} ر.س</span></div>${cofBars(p.cof)}<p class="small muted">يعتمد عليه ${t.graph.dependents} أصل${t.graph.parent ? ` · يتغذى من ${esc(t.graph.parent)}` : ""}</p></div>` : ""}
       </div>
     </div>`;
@@ -265,7 +266,7 @@ async function loadBacktest() {
   $("#btBars").innerHTML = barChart(Object.entries(BT.pfr).map(([L, v]) => ({ label: "L=" + L, a: v.baseera, b: v.age_rule })), "PFR@L بحسب المهلة: بصيرة مقابل قاعدة العمر");
   $("#btSeries").innerHTML = lineChart(BT.series.map((s) => ({ x: s.week.slice(5), y: s.failures ? s.anticipated / s.failures : null })), "نسبة الأعطال المُنذَر بها أسبوعيًا");
   $("#btCats tbody").innerHTML = (BT.by_category || []).map((c) => `<tr><td><b>${esc(c.ar)}</b></td><td class="num">${fmt(c.n_assets)}</td><td class="num">${c.n}</td><td class="num"><b>${pct(c.pfr_L)}</b></td><td class="num">${pct(c.pfr_age)}</td><td class="num">${pct(c.emergency_share)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted small">الاختبار الرجعي الحالي سابق لإضافة الفئات؛ أعد تشغيله</td></tr>';
-  $("#btModes tbody").innerHTML = BT.by_mode.map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${esc(CAT_AR[(CATALOG.find((c) => c.modes.some((x) => x.code === m.mode)) || {}).key] || "")}</td><td>${m.cls}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
+  $("#btModes tbody").innerHTML = BT.by_mode.map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${esc(CAT_AR[(CATALOG.find((c) => c.modes.some((x) => x.code === m.mode)) || {}).key] || "")}</td><td title="${esc(CLASS_AR[m.cls] || "")}">${esc(CLASS_AR[m.cls] || m.cls)}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
 }
 
 /* ------------------------------------------------------------------ data panel */
@@ -313,12 +314,38 @@ $("#commit").onclick = async () => {
   try { const r = await api(`/admin/ingest/${PIPE}/run?source=${$("#source").value}`, { method: "POST", body: fd }); steps(4); toast(`أُدخل ${fmt(r.n_ok)} سطرًا؛ ${fmt(r.n_quarantined)} في الحجر`, "ok"); $("#commitMsg").innerHTML = `تم: ${fmt(r.n_ok)} مقبول · ${fmt(r.n_quarantined)} محجور. <a href="#ops">أعد الحساب</a> ليظهر الأثر في القائمة.`; PREVIEW_FILE = null; loadData(); }
   catch (e) { toast(e.message, "bad"); $("#commit").disabled = false; }
 };
-$("#dataTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#dataTabs button").forEach((x) => x.classList.toggle("on", x === b)); ["upload", "manual", "quarantine", "runs", "catalog"].forEach((t) => ($("#d-" + t).hidden = t !== b.dataset.t)); if (b.dataset.t === "quarantine") loadQuarantine(); if (b.dataset.t === "runs") loadRuns(); if (b.dataset.t === "catalog") renderCatalog(); });
+$("#dataTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#dataTabs button").forEach((x) => x.classList.toggle("on", x === b)); ["upload", "manual", "quarantine", "runs", "catalog", "glossary"].forEach((t) => ($("#d-" + t).hidden = t !== b.dataset.t)); if (b.dataset.t === "quarantine") loadQuarantine(); if (b.dataset.t === "runs") loadRuns(); if (b.dataset.t === "catalog") renderCatalog(); if (b.dataset.t === "glossary") loadGlossary($("#glossaryBody")); });
 function renderCatalog() {
   $("#catalogBody").innerHTML = CATALOG.map((c) => `<div class="card" style="margin-bottom:12px"><div class="hd"><h3>${esc(c.ar)} <span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status]}</span></h3><span class="small text2">${esc(c.status_ar)}</span></div>
     <div class="grid g3"><div><h4>أنواع الأصول</h4><table class="tbl">${c.types.map((t) => `<tr><td><span class="mono">${t.code}</span></td><td>${esc(t.ar)}</td><td class="num small">${t.design_life_y} سنة · ${fmt(t.cost_planned)} ر.س</td></tr>`).join("")}</table></div>
     <div><h4>أنماط العطل (الصنف · المهلة L)</h4><table class="tbl">${c.modes.map((m) => `<tr><td><span class="mono">${m.code}</span></td><td>${esc(m.ar)}</td><td class="num small">${m.cls} · ${m.L} يوم</td></tr>`).join("")}</table></div>
-    <div><h4>العلامات المرصودة</h4><table class="tbl">${c.symptoms.map((s) => `<tr><td><span class="mono">${s.code}</span></td><td>${esc(s.ar)}</td></tr>`).join("")}</table></div></div></div>`).join("");
+    <div><h4>العلامات المرصودة</h4><table class="tbl">${c.symptoms.map((s) => `<tr><td><span class="mono">${s.code}</span></td><td>${esc(s.ar)}</td></tr>`).join("")}</table>
+    ${c.channels && c.channels.length ? `<h4 style="margin-top:8px">قنوات الإشارات</h4><table class="tbl">${c.channels.map((ch) => `<tr><td><span class="mono">${ch.code}</span></td><td>${esc(ch.ar)} <small class="muted">${esc(ch.unit)} · ${esc(ch.source)}</small></td></tr>`).join("")}</table>` : ""}</div></div></div>`).join("");
+}
+let GLOSS = null;
+async function loadGlossary(target) {
+  $("#topRight").innerHTML = "";
+  if (!GLOSS) GLOSS = await api("/admin/glossary");
+  const G = GLOSS, tbl = (rows, cols) => `<table class="tbl">${rows.map((r) => `<tr>${cols.map((c, k) => `<td class="${k === 0 ? "" : "small"}">${k === 0 ? `<span class="mono">${esc(r[c])}</span>` : esc(r[c] ?? "")}</td>`).join("")}</tr>`).join("")}</table>`;
+  const card = (title, body, note) => `<div class="card" style="margin-bottom:12px"><div class="hd"><h3>${title}</h3>${note ? `<span class="small text2">${note}</span>` : ""}</div>${body}</div>`;
+  target.innerHTML = `
+    <div class="callout">هذا الدليل يعرّف كل رمز يظهر في المنصة بالعربية. الرموز الإنجليزية ثابتة في قاعدة البيانات والملفات المرفوعة (حتى تبقى قابلة للتبادل مع أنظمة الجهة)، والتسمية العربية هي ما يراه المشرف والفني.</div>
+    <div class="grid g2">
+      ${card("بادئات رموز الأصول", tbl(G.code_prefixes, ["code", "ar"]), "LP-10001 · CB-01 · PS-32 · EL-7 · PV-143")}
+      ${card("أصناف الأصول (kind)", tbl(G.kinds, ["code", "ar"]))}
+      ${card("تصنيف الشارع والموقع الحرج", tbl([...G.streets, ...G.criticality], ["code", "ar"]), "يدخلان في العواقب والأولوية")}
+      ${card("فئات أنماط العطل أ/ب/ج", tbl(G.classes, ["code", "ar", "desc"]), "بحسب فترة P–F والمهلة L")}
+      ${card("فئات الأولوية", tbl(G.tiers, ["code", "ar", "desc"]))}
+      ${card("الإجراءات", tbl(G.actions, ["code", "ar", "desc"]))}
+      ${card("حالات بند القائمة", tbl(G.statuses, ["code", "ar"]))}
+      ${card("نتائج الزيارة (تطبيق الفني)", tbl(G.findings, ["code", "ar"]))}
+      ${card("مصادر البيانات", tbl(G.sources, ["code", "ar"]))}
+      ${card("أنواع البلاغات وأوامر العمل", tbl([...G.report_types, ...G.work_order_kinds], ["code", "ar"]))}
+    </div>
+    ${card("قنوات الإشارات (مراقبة الحالة)", tbl(G.channels, ["code", "ar", "unit", "category_ar", "source_ar", "direction"]), "تجميع يومي لكل أصل")}
+    ${card("المؤشرات والمصطلحات", tbl(G.metrics, ["code", "ar"]))}
+    ${card("قطع الغيار وخطوات العمل لكل نمط عطل", tbl(G.parts, ["mode", "mode_ar", "parts", "checklist", "hours"]), "ما يُطبع في أمر العمل المولَّد")}
+    <p class="small muted">أنواع الأصول وأنماط العطل والعلامات لكل فئة: في تبويب «كتالوج الأصول» بلوحة المدخلات. الأسماء العربية كلها في ملف واحد يمكن للجهة تعديله: core/catalog.py.</p>`;
 }
 $("#manualPipe").onchange = (e) => renderManual(e.target.value);
 function renderManual(name) {
