@@ -50,7 +50,7 @@ async function boot() {
 function renderChips() {
   $("#catChips").innerHTML = [["", "كل الفئات"], ...Object.entries(CAT_AR)].map(([k, v]) => `<button class="chip ${CAT === k ? "on" : ""}" data-cat="${k}">${v}</button>`).join("");
 }
-$("#catChips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (!b) return; CAT = b.dataset.cat; renderChips(); route(); });
+$("#catChips").addEventListener("click", (e) => { const b = e.target.closest(".chip"); if (!b) return; CAT = b.dataset.cat; renderChips(); route(); if (!$("#d-catalog").hidden) renderCatalog(); });
 const inCat = (c) => !CAT || c === CAT;
 window.addEventListener("hashchange", route);
 function route() {
@@ -58,7 +58,8 @@ function route() {
   const link = $(`#nav a[href="#${h}"]`); if (link && link.hidden) { h = "home"; location.hash = "#home"; }
   $$(".view").forEach((v) => (v.hidden = v.id !== "v-" + h));
   $$("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + h));
-  $("#title").textContent = TITLES[h] || ""; $("#crumbs").textContent = "بصيرة / " + (TITLES[h] || "");
+  $("#title").textContent = TITLES[h] || ""; $("#crumbs").textContent = "بصيرة / " + (TITLES[h] || "") + (CAT ? " / " + CAT_AR[CAT] : "");
+  $("#catChips").hidden = !["home", "week", "map", "schedule", "twin", "backtest", "data"].includes(h);
   clearInterval(JOBPOLL);
   ({ glossary: () => loadGlossary($("#glossaryView")), home: loadHome, week: loadWeek, map: () => loadAssets().then(drawMap), schedule: loadSchedule, twin: loadTwinView, assistant: loadAssistant, ledger: loadLedger, backtest: loadBacktest, data: loadData, params: loadParams, ops: loadOps }[h] || (() => {}))();
 }
@@ -70,9 +71,11 @@ async function loadHome() {
   try { CUR = await api("/weekly-lists/current"); } catch { CUR = null; }
   let L = null; try { L = await api("/ledger/months"); } catch {}
   const last = L?.months?.filter((m) => m.n_failures).slice(-1)[0];
-  if (ov && ov.categories) $("#homeCats").innerHTML = ov.categories.map((c) => `<div class="catcard"><div class="row between"><b>${esc(c.ar)}</b><span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status] || c.status}</span></div><div class="row" style="gap:18px;margin-top:6px"><div><span class="n">${fmt(c.n_assets)}</span> <small class="muted">أصل</small></div><div><span class="n">${fmt(c.n_failures)}</span> <small class="muted">عطل مسجّل</small></div></div><p class="small text2" style="margin:4px 0 0">${esc(c.status_ar)}</p></div>`).join("");
-  else $("#homeCats").innerHTML = Object.entries(CAT_AR).map(([k, v]) => { const n = ASSETS.filter((a) => a.category === k).length; return `<div class="catcard"><b>${v}</b><div><span class="n">${fmt(n)}</span> <small class="muted">أصل في الخريطة</small></div></div>`; }).join("");
-  $("#homeKpis").innerHTML = kpi("أصول تحت المراقبة", fmt(ov ? ov.tables.assets.n : ASSETS.length)) + kpi("قائمة الأسبوع", CUR ? `${CUR.items.length} <small>بند · ${CUR.status === "approved" ? "معتمدة" : "مقترحة"}</small>` : "—")
+  if (ov && ov.categories) $("#homeCats").innerHTML = ov.categories.filter((c) => inCat(c.key)).map((c) => `<div class="catcard"><div class="row between"><b>${esc(c.ar)}</b><span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status] || c.status}</span></div><div class="row" style="gap:18px;margin-top:6px"><div><span class="n">${fmt(c.n_assets)}</span> <small class="muted">أصل</small></div><div><span class="n">${fmt(c.n_failures)}</span> <small class="muted">عطل مسجّل</small></div></div><p class="small text2" style="margin:4px 0 0">${esc(c.status_ar)}</p></div>`).join("");
+  else $("#homeCats").innerHTML = Object.entries(CAT_AR).filter(([k]) => inCat(k)).map(([k, v]) => { const n = ASSETS.filter((a) => a.category === k).length; return `<div class="catcard"><b>${v}</b><div><span class="n">${fmt(n)}</span> <small class="muted">أصل في الخريطة</small></div></div>`; }).join("");
+  const nAssets = CAT ? (ov ? (ov.categories.find((c) => c.key === CAT) || {}).n_assets : ASSETS.filter((a) => a.category === CAT).length) : (ov ? ov.tables.assets.n : ASSETS.length);
+  const nList = CUR ? CUR.items.filter((i) => inCat(i.category)).length : null;
+  $("#homeKpis").innerHTML = kpi("أصول تحت المراقبة", fmt(nAssets)) + kpi("قائمة الأسبوع", CUR ? `${nList} <small>بند · ${CUR.status === "approved" ? "معتمدة" : "مقترحة"}</small>` : "—")
     + kpi("PFR@L آخر شهر <small>(قوائم معتمدة)</small>", last ? pct(last.pfr.own) : "—", "accent") + kpi("نسبة الطارئ", last ? pct(last.emergency_share) : "—") + (ov ? kpi("سطور محجورة", fmt(ov.quarantine_open), ov.quarantine_open ? "" : "") : "");
   if (ov) {
     const T = ov.tables, names = { cabinets: "الخزانات", assets: "الأصول", weather: "أيام الطقس", reports: "البلاغات", work_orders: "أوامر العمل", observations: "العلامات" };
@@ -168,13 +171,14 @@ async function loadSchedule() {
   $("#topRight").innerHTML = "";
   try { SCH = await api("/schedule/current"); } catch (e) { $("#schKpis").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
   $("#schBanner").innerHTML = SCH.banner.length ? `<div class="callout warn">${SCH.banner.map(esc).join(" · ")}</div>` : "";
-  $("#schKpis").innerHTML = kpi("مهام الأسبوع", SCH.items.length) + kpi("الخطورة المعالَجة (ر.س)", fmt(SCH.total_risk), "accent") + kpi("التكلفة / الميزانية", `${fmt(SCH.total_cost)} / ${fmt(SCH.budget)}`) + kpi("الطواقم / المسارات", `${SCH.crews} / ${SCH.routes.length}`) + kpi("بالتجميع الجغرافي", SCH.grouped);
-  $("#tierCards").innerHTML = Object.entries(TIER_AR).map(([k, v]) => `<div class="tiercard"><span class="tier ${k}">${v}</span><b style="display:block">${SCH.tiers[k] || 0}</b></div>`).join("");
+  const items = SCH.items.filter((i) => inCat(i.category)); const routesF = SCH.routes.map((r) => ({ ...r, items: r.items.filter((i) => inCat(i.category)) })).filter((r) => r.items.length);
+  $("#schKpis").innerHTML = kpi("مهام الأسبوع" + (CAT ? " (" + CAT_AR[CAT] + ")" : ""), items.length) + kpi("الخطورة المعالَجة (ر.س)", fmt(items.reduce((s, i) => s + i.risk_sar, 0)), "accent") + kpi("التكلفة / الميزانية", `${fmt(items.reduce((s, i) => s + i.cost, 0))} / ${fmt(SCH.budget)}`) + kpi("الطواقم / المسارات", `${SCH.crews} / ${routesF.length}`) + kpi("بالتجميع الجغرافي", items.filter((i) => i.grouped).length);
+  $("#tierCards").innerHTML = Object.entries(TIER_AR).map(([k, v]) => `<div class="tiercard"><span class="tier ${k}">${v}</span><b style="display:block">${items.filter((i) => i.tier === k).length}</b></div>`).join("");
   const pts = SCH.pareto; if (!$("#budgetIn").value) $("#budgetIn").value = SCH.budget;
   $("#paretoChart").innerHTML = pts.length ? paretoChart(pts, SCH.budget) : '<div class="empty">لا منحنى بعد</div>';
   $("#routeNote").textContent = `المسار يُرتَّب بأقرب جار؛ المهام الموسومة «تجميع» أُضيفت لأنها ضمن 250 م من المسار بتكلفة تنقل شبه صفرية`;
-  $("#routeList").innerHTML = SCH.routes.map((r, k) => `<div class="card" style="margin-bottom:8px;border-inline-start:4px solid ${ROUTE_COLORS[k % 5]}"><div class="hd"><h4>مسار ${r.route} · ${r.n} مهام · ${fmt(r.cost)} ر.س · خطورة ${fmt(r.risk)}</h4></div>
-    <table class="tbl">${r.items.map((i) => `<tr><td class="num">${i.seq}</td><td><a href="#twin" data-twin="${esc(i.code)}">${esc(i.code)}</a> <small class="muted">${esc(i.type_ar || "")}</small>${i.grouped ? ' <span class="badge sim">تجميع</span>' : ""}</td><td>${tierBadge(i.tier)}</td><td class="small">${esc(i.mode_ar || "")}</td><td class="num small">${winTxt(i.window)}</td><td class="num">${i.return_per_riyal}×</td><td class="small muted">${esc(i.safe_window)}</td><td>${i.work_order ? '<span class="badge ok">أمر عمل</span>' : (ME.role === "supervisor" || ME.role === "admin") ? `<button class="btn ghost sm" data-wo="${i.item_id}">أمر عمل</button>` : ""}</td></tr>`).join("")}</table></div>`).join("");
+  $("#routeList").innerHTML = (routesF.length ? routesF : []).map((r) => ({ ...r, k: r.route - 1 })).map((r) => `<div class="card" style="margin-bottom:8px;border-inline-start:4px solid ${ROUTE_COLORS[r.k % 5]}"><div class="hd"><h4>مسار ${r.route} · ${r.items.length} مهام · ${fmt(r.items.reduce((s, i) => s + i.cost, 0))} ر.س · خطورة ${fmt(r.items.reduce((s, i) => s + i.risk_sar, 0))}</h4></div>
+    <table class="tbl">${r.items.map((i) => `<tr><td class="num">${i.seq}</td><td><a href="#twin" data-twin="${esc(i.code)}">${esc(i.code)}</a> <small class="muted">${esc(i.type_ar || "")}</small>${i.grouped ? ' <span class="badge sim">تجميع</span>' : ""}</td><td>${tierBadge(i.tier)}</td><td class="small">${esc(i.mode_ar || "")}</td><td class="num small">${winTxt(i.window)}</td><td class="num">${i.return_per_riyal}×</td><td class="small muted">${esc(i.safe_window)}</td><td>${i.work_order ? '<span class="badge ok">أمر عمل</span>' : (ME.role === "supervisor" || ME.role === "admin") ? `<button class="btn ghost sm" data-wo="${i.item_id}">أمر عمل</button>` : ""}</td></tr>`).join("")}</table></div>`).join("") || '<div class="empty">لا مهام في هذه الفئة هذا الأسبوع</div>';
   drawRoutes();
 }
 function paretoChart(pts, budget) {
@@ -189,9 +193,9 @@ function drawRoutes() {
   const lons = ASSETS.map((a) => a.lon), lats = ASSETS.map((a) => a.lat), x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
   const pad = 30, s = Math.min((c.width - 2 * pad) / (x1 - x0 || 1), (c.height - 2 * pad) / (y1 - y0 || 1)), T = (a) => [pad + (a.lon - x0) * s, c.height - pad - (a.lat - y0) * s];
   ctx.fillStyle = "#c9d2db"; for (const a of ASSETS) { const [x, y] = T(a); ctx.fillRect(x - 1, y - 1, 2, 2); }
-  SCH.routes.forEach((r, k) => { const col = ROUTE_COLORS[k % 5]; const pts = r.items.slice().sort((a, b) => a.seq - b.seq).map(T);
+  SCH.routes.forEach((r, k) => { const col = ROUTE_COLORS[k % 5]; const pts = r.items.slice().sort((a, b) => a.seq - b.seq).map(T); if (CAT && !r.items.some((i) => inCat(i.category))) return;
     ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
-    r.items.forEach((i) => { const [x, y] = T(i); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, i.grouped ? 5 : 7, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText(i.seq, x, y + 3); }); });
+    r.items.forEach((i) => { if (!inCat(i.category)) return; const [x, y] = T(i); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, i.grouped ? 5 : 7, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText(i.seq, x, y + 3); }); });
 }
 $("#replan").onclick = async () => { try { await api("/schedule/replan", { method: "POST", body: JSON.stringify({ budget: +$("#budgetIn").value }) }); toast("أُعيدت الجدولة", "ok"); loadSchedule(); } catch (e) { toast(e.message, "bad"); } };
 document.addEventListener("click", async (e) => { const b = e.target.closest("button[data-wo]"); if (!b) return; try { const r = await api(`/assistant/work-order/${b.dataset.wo}`, { method: "POST" }); toast("وُلّد أمر العمل " + r.details.asset, "ok"); if (SCH) loadSchedule(); } catch (err) { toast(err.message, "bad"); } });
@@ -199,7 +203,7 @@ document.addEventListener("click", async (e) => { const b = e.target.closest("bu
 /* ------------------------------------------------------------------ twin */
 async function loadTwinView() {
   $("#topRight").innerHTML = "";
-  try { const sc = await api("/schedule/current"); $("#twinQuick").innerHTML = sc.items.slice(0, 6).map((i) => `<button class="chip" data-twinq="${esc(i.code)}">${esc(i.code)}</button>`).join(""); if (!$("#twinCode").value && sc.items[0]) { $("#twinCode").value = sc.items[0].code; loadTwin(sc.items[0].code); } } catch {}
+  try { const sc = await api("/schedule/current"); $("#twinQuick").innerHTML = sc.items.filter((i) => inCat(i.category)).slice(0, 6).map((i) => `<button class="chip" data-twinq="${esc(i.code)}">${esc(i.code)}</button>`).join(""); const first = sc.items.find((i) => inCat(i.category)); if (first && (!$("#twinCode").value || CAT)) { $("#twinCode").value = first.code; loadTwin(first.code); } } catch {}
 }
 $("#twinQuick").addEventListener("click", (e) => { const b = e.target.closest("[data-twinq]"); if (b) { $("#twinCode").value = b.dataset.twinq; loadTwin(b.dataset.twinq); } });
 $("#twinGo").onclick = () => loadTwin($("#twinCode").value.trim());
@@ -265,8 +269,9 @@ async function loadBacktest() {
   $("#btKpis").innerHTML = kpi("PFR@L — بصيرة", pct(P.baseera), "accent") + kpi("PFR@L — قاعدة العمر", pct(P.age_rule)) + kpi("PFR@L — اليوم", "0%") + kpi("نسبة الطارئ", `${pct(BT.emergency_share.reactive)} ← ${pct(BT.emergency_share.baseera)}`) + kpi("أيام الانطفاء", `${fmt(BT.dark_days.reactive)} ← ${fmt(BT.dark_days.baseera)}`) + kpi("AUC · الدقة@30", `${BT.metrics.auc.toFixed(2)} · ${pct(BT.precision30)}`) + kpi("الأعطال / الأسابيع", `${BT.n_failures} / ${BT.weeks}`) + kpi("تغطية نافذة العطل", BT.window_coverage != null ? pct(BT.window_coverage) + ` <small>(${BT.window_n})</small>` : "—") + kpi("الحد الأعلى النظري", BT.ceiling != null ? pct(BT.ceiling) : "—");
   $("#btBars").innerHTML = barChart(Object.entries(BT.pfr).map(([L, v]) => ({ label: "L=" + L, a: v.baseera, b: v.age_rule })), "PFR@L بحسب المهلة: بصيرة مقابل قاعدة العمر");
   $("#btSeries").innerHTML = lineChart(BT.series.map((s) => ({ x: s.week.slice(5), y: s.failures ? s.anticipated / s.failures : null })), "نسبة الأعطال المُنذَر بها أسبوعيًا");
-  $("#btCats tbody").innerHTML = (BT.by_category || []).map((c) => `<tr><td><b>${esc(c.ar)}</b></td><td class="num">${fmt(c.n_assets)}</td><td class="num">${c.n}</td><td class="num"><b>${pct(c.pfr_L)}</b></td><td class="num">${pct(c.pfr_age)}</td><td class="num">${pct(c.emergency_share)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted small">الاختبار الرجعي الحالي سابق لإضافة الفئات؛ أعد تشغيله</td></tr>';
-  $("#btModes tbody").innerHTML = BT.by_mode.map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${esc(CAT_AR[(CATALOG.find((c) => c.modes.some((x) => x.code === m.mode)) || {}).key] || "")}</td><td title="${esc(CLASS_AR[m.cls] || "")}">${esc(CLASS_AR[m.cls] || m.cls)}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
+  $("#btCats tbody").innerHTML = (BT.by_category || []).filter((c) => inCat(c.category)).map((c) => `<tr><td><b>${esc(c.ar)}</b></td><td class="num">${fmt(c.n_assets)}</td><td class="num">${c.n}</td><td class="num"><b>${pct(c.pfr_L)}</b></td><td class="num">${pct(c.pfr_age)}</td><td class="num">${pct(c.emergency_share)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted small">الاختبار الرجعي الحالي سابق لإضافة الفئات؛ أعد تشغيله</td></tr>';
+  const modeCat = (m) => (CATALOG.find((c) => c.modes.some((x) => x.code === m)) || {}).key;
+  $("#btModes tbody").innerHTML = BT.by_mode.filter((m) => inCat(modeCat(m.mode))).map((m) => `<tr><td>${esc(m.mode_ar)}</td><td>${esc(CAT_AR[(CATALOG.find((c) => c.modes.some((x) => x.code === m.mode)) || {}).key] || "")}</td><td title="${esc(CLASS_AR[m.cls] || "")}">${esc(CLASS_AR[m.cls] || m.cls)}</td><td class="num">${m.n}</td><td class="num">${m.L}</td><td class="num"><b>${pct(m.pfr_L)}</b></td><td class="num">${pct(m.pfr7)}</td><td class="num">${m.median_lead ?? "—"}</td></tr>`).join("");
 }
 
 /* ------------------------------------------------------------------ data panel */
@@ -316,7 +321,7 @@ $("#commit").onclick = async () => {
 };
 $("#dataTabs").addEventListener("click", (e) => { const b = e.target.closest("button"); if (!b) return; $$("#dataTabs button").forEach((x) => x.classList.toggle("on", x === b)); ["upload", "manual", "quarantine", "runs", "catalog", "glossary"].forEach((t) => ($("#d-" + t).hidden = t !== b.dataset.t)); if (b.dataset.t === "quarantine") loadQuarantine(); if (b.dataset.t === "runs") loadRuns(); if (b.dataset.t === "catalog") renderCatalog(); if (b.dataset.t === "glossary") loadGlossary($("#glossaryBody")); });
 function renderCatalog() {
-  $("#catalogBody").innerHTML = CATALOG.map((c) => `<div class="card" style="margin-bottom:12px"><div class="hd"><h3>${esc(c.ar)} <span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status]}</span></h3><span class="small text2">${esc(c.status_ar)}</span></div>
+  $("#catalogBody").innerHTML = CATALOG.filter((c) => inCat(c.key)).map((c) => `<div class="card" style="margin-bottom:12px"><div class="hd"><h3>${esc(c.ar)} <span class="badge ${c.status === "pilot" ? "ok" : "info"}">${STATUS_CAT[c.status]}</span></h3><span class="small text2">${esc(c.status_ar)}</span></div>
     <div class="grid g3"><div><h4>أنواع الأصول</h4><table class="tbl">${c.types.map((t) => `<tr><td><span class="mono">${t.code}</span></td><td>${esc(t.ar)}</td><td class="num small">${t.design_life_y} سنة · ${fmt(t.cost_planned)} ر.س</td></tr>`).join("")}</table></div>
     <div><h4>أنماط العطل (الصنف · المهلة L)</h4><table class="tbl">${c.modes.map((m) => `<tr><td><span class="mono">${m.code}</span></td><td>${esc(m.ar)}</td><td class="num small">${m.cls} · ${m.L} يوم</td></tr>`).join("")}</table></div>
     <div><h4>العلامات المرصودة</h4><table class="tbl">${c.symptoms.map((s) => `<tr><td><span class="mono">${s.code}</span></td><td>${esc(s.ar)}</td></tr>`).join("")}</table>
