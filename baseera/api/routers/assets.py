@@ -67,7 +67,7 @@ def asset_card(asset_id: str, db: Session = Depends(get_db), u: User = Depends(r
                 install=str(a.install_date) if a.install_date else None, cabinet=a.cabinet.cabinet_code if a.cabinet else None, owner=a.owner_entity,
                 source=a.source, week_start=str(wk) if wk else None,
                 prediction=(dict(p=round(p.p_fail, 4), risk_sar=round(p.risk_sar, 1), priority=round(p.priority, 4), explanation=p.explanation,
-                                 model_version_id=p.model_version_id) if p else None),
+                                 model_version_id=p.model_version_id, tier=p.tier, mode=p.mode_pred, window=([p.window_lo, p.window_hi] if p.window_lo is not None else None), cof=p.cof) if p else None),
                 list_item=(dict(item_id=item.item_id, rank=item.rank, action=item.action, status=item.status, reason=item.reason) if item else None),
                 observations=[dict(at=o.observed_at.isoformat(), symptom=o.symptom_code, severity=o.severity, source=o.source) for o in obs],
                 failures=[dict(on=str(f.failed_on), mode=f.failure_mode, lead=f.lead_days, warned=f.had_warning_at_L, dark=f.days_dark) for f in fails],

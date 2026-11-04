@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from ...core.db import get_db
-from ...core.models import Asset, ListItem, Observation, Outcome, Prediction, User, WeeklyList
+from ...core.models import Asset, ListItem, Observation, Outcome, Prediction, User, WeeklyList, WorkOrder
 from ...core.security import audit, require
 from ...services.ingest.base import normalise_code
 from ...core.catalog import CATEGORIES, SYMPTOM_AR, SYMPTOM_CODES as SYMPTOMS, symptoms_for
@@ -42,7 +42,8 @@ def by_code(code: str, db: Session = Depends(get_db), u: User = Depends(require(
     return dict(asset_id=a.asset_id, code=a.asset_code, type=a.asset_type, category=a.category, category_ar=CATEGORIES.get(a.category, {}).get("ar"),
                 kind=a.kind, street=a.street_class, crit=a.criticality, symptoms=symptoms_for(a.category),
                 cabinet=a.cabinet.cabinet_code if a.cabinet else None, p=(round(p.p_fail, 3) if p else None),
-                task=(dict(item_id=item.item_id, action=item.action, action_ar=ACTION_AR.get(item.action), status=item.status, reason=item.reason) if item else None),
+                task=(dict(item_id=item.item_id, action=item.action, action_ar=ACTION_AR.get(item.action), status=item.status, reason=item.reason, tier=item.tier, safe_window=item.safe_window,
+                           work_order=(db.query(WorkOrder).filter_by(item_id=item.item_id).first().details if db.query(WorkOrder).filter_by(item_id=item.item_id).first() else None)) if item else None),
                 last_symptom=(dict(code=last.symptom_code, ar=SYMPTOM_AR.get(last.symptom_code), at=last.observed_at.isoformat()) if last else None))
 
 
@@ -110,6 +111,8 @@ def my_tasks(db: Session = Depends(get_db), u: User = Depends(require("technicia
         return []
     wl = db.query(WeeklyList).filter_by(week_start=wk, run_tag="live").first()
     A = {a.asset_id: a for a in db.query(Asset).filter(Asset.asset_id.in_([i.asset_id for i in wl.items])).all()} if wl.items else {}
+    wos = {w.item_id: w.details for w in db.query(WorkOrder).filter(WorkOrder.item_id.isnot(None)).all()}
     return [dict(item_id=i.item_id, rank=i.rank, code=A[i.asset_id].asset_code, type=A[i.asset_id].asset_type, category=A[i.asset_id].category, lon=A[i.asset_id].lon, lat=A[i.asset_id].lat,
-                 action=i.action, action_ar=ACTION_AR.get(i.action), status=i.status, reason=i.reason)
-            for i in sorted(wl.items, key=lambda x: x.rank) if i.status in ("approved", "proposed")]
+                 action=i.action, action_ar=ACTION_AR.get(i.action), status=i.status, reason=i.reason, tier=i.tier, route=i.route, seq=i.seq, safe_window=i.safe_window,
+                 work_order=wos.get(i.item_id))
+            for i in sorted(wl.items, key=lambda x: (x.route or 99, x.seq or 99, x.rank)) if i.status in ("approved", "proposed")]

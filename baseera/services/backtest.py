@@ -44,6 +44,8 @@ def run_backtest(db: Session, split: date, end: date, out_path: str | None = Non
     s = get_settings()
     _clear(db)
     derive_failures(db, run_tag="backtest")
+    from .twin.sesi import compute as sesi_compute
+    sesi_compute(db)
     if train_model:
         mv = train(db, as_of=split, name="backtest", force=True)
     else:
@@ -87,6 +89,18 @@ def run_backtest(db: Session, split: date, end: date, out_path: str | None = Non
         by_mode.append(dict(mode=mode, mode_ar=MODE_AR.get(mode, mode), cls=CLASS.get(mode, "C"), n=int(m.sum()), L=L_for(mode),
                             pfr_L=round(float((lead_b[m] >= own_L[m]).mean()), 3), pfr7=round(float((lead_b[m] >= 7).mean()), 3),
                             median_lead=(float(np.median(lead_b[m][lead_b[m] >= 0])) if (lead_b[m] >= 0).any() else None)))
+    # conformal window coverage: the last prediction before each failure must contain the actual day
+    preds = {}
+    for p in db.query(Prediction).filter(Prediction.run_tag == "backtest", Prediction.window_lo.isnot(None)).all():
+        preds.setdefault(p.asset_id, []).append((p.week_start, p.window_lo, p.window_hi))
+    cov_hits, cov_n = 0, 0
+    for f in fails:
+        rows = [r for r in preds.get(f.asset_id, []) if r[0] < f.failed_on]
+        if not rows: continue
+        w, lo, hi = max(rows, key=lambda r: r[0]); d = (f.failed_on - w).days; cov_n += 1
+        if lo <= d <= hi: cov_hits += 1
+    window_coverage = round(cov_hits / cov_n, 3) if cov_n else None
+    ceiling = round(float((cls != "C").mean()), 3) if len(cls) else None   # physics upper bound: modes with a detectable P–F interval
     cat = np.array([A[f.asset_id].category for f in fails])
     by_category = []
     for c in CATEGORIES:
@@ -103,6 +117,7 @@ def run_backtest(db: Session, split: date, end: date, out_path: str | None = Non
         pfr_own_L=dict(baseera=round(float((lead_b >= own_L).mean()), 3), age_rule=round(float((lead_a >= own_L).mean()), 3), reactive=0.0,
                        predictable_only=round(float((lead_b[cls != "C"] >= own_L[cls != "C"]).mean()), 3) if (cls != "C").any() else None),
         precision30=round(hits / max(1, n_items), 3), alerts_per_week=round(n_items / max(1, len(weeks)), 1), missed=int((lead_b < 0).sum()),
+        window_coverage=window_coverage, window_n=cov_n, window_q_days=mv.metrics.get("window_q_days"), ceiling=ceiling,
         emergency_share=dict(reactive=1.0, baseera=round(float(1 - averted_b.mean()), 3)),
         dark_days=dict(reactive=int(dark.sum()), baseera=int(round(float((dark * (1 - averted_b)).sum())))),
         cost=dict(reactive=int((cost_pl * s.emergency_multiplier).sum()),

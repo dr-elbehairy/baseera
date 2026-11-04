@@ -14,7 +14,7 @@ from ..core.models import Asset, Job
 from ..core.params import apply_overrides
 from ..core.security import seed_demo_users
 from ..services import jobs
-from .routers import admin, assets, auth, field, ledger, lists
+from .routers import admin, assets, assistant, auth, field, ledger, lists, schedule, twin
 
 APPS = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "apps")
 
@@ -27,10 +27,10 @@ def _recover_jobs(db) -> None:
 
 def create_app() -> FastAPI:
     s = get_settings()
-    app = FastAPI(title="Baseera — Predictive Maintenance for Urban Assets", version="0.3.0",
+    app = FastAPI(title="Baseera — Predictive Maintenance for Urban Assets", version="0.4.0",
                   description="بصيرة: سجل قابلية التنبؤ وقائمة الأسبوع لصيانة الأصول الحضرية", docs_url="/api/docs", openapi_url="/api/openapi.json")
     app.add_middleware(CORSMiddleware, allow_origins=s.cors_origins, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
-    for r in (auth, assets, lists, field, ledger, admin):
+    for r in (auth, assets, lists, field, ledger, admin, twin, schedule, assistant):
         app.include_router(r.router, prefix="/api")
 
     @app.get("/api/health", tags=["ops"])

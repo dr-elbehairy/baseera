@@ -7,8 +7,8 @@ from typing import Optional
 import pandas as pd
 from pydantic import BaseModel, field_validator
 
-from ....core.catalog import ASSET_TYPES, MODE_CODES, SYMPTOM_CODES, category_of, kind_of
-from ....core.models import Asset, Cabinet, Observation, Report, WeatherDay, WorkOrder
+from ....core.catalog import ASSET_TYPES, CHANNELS, MODE_CODES, SYMPTOM_CODES, category_of, kind_of
+from ....core.models import Asset, Cabinet, Dependency, Observation, Report, TelemetryDay, WeatherDay, WorkOrder
 from ..base import Pipeline, RowError, normalise_code, opt_dt, reporter_hash, to_dt
 from ..match import AssetMatcher
 
@@ -312,6 +312,113 @@ class WeatherPipeline(Pipeline):
         self.db.add(w)
 
 
+# ----------------------------------------------------------------------------- telemetry (IoT kit / SCADA / controller / vehicle camera / smart meter), daily aggregates
+class TelemetryRow(BaseModel):
+    asset_code: str
+    day: str
+    channel: str
+    value: float
+    n_samples: int = 1
+    source: str = "iot_pulse"
+
+    @field_validator("channel")
+    @classmethod
+    def _ch(cls, v):
+        v = str(v).strip().lower()
+        if v not in CHANNELS:
+            raise ValueError(f"channel must be one of {sorted(CHANNELS)}")
+        return v
+
+
+class TelemetryPipeline(Pipeline):
+    name = "telemetry"
+    schema = TelemetryRow
+
+    def __init__(self, db, source="municipal"):
+        super().__init__(db, source)
+        self.m = AssetMatcher(db)
+
+    def handle(self, row: TelemetryRow, raw: dict) -> None:
+        asset, _ = self.m.resolve(row.asset_code, None, None)
+        if CHANNELS[row.channel][0] != asset.category:
+            raise RowError(f"channel {row.channel} does not belong to category {asset.category}")
+        d = _date(row.day)
+        t = self.db.query(TelemetryDay).filter_by(asset_id=asset.asset_id, day=d, channel=row.channel).first() or TelemetryDay(asset_id=asset.asset_id, day=d, channel=row.channel)
+        t.value, t.n_samples, t.source = float(row.value), int(row.n_samples), row.source
+        self.db.add(t)
+
+    def run(self, rows):
+        """Bulk path: telemetry arrives in hundreds of thousands of rows; validate vectorised, quarantine the rest, bulk insert."""
+        from ....core.models import IngestRun, Quarantine
+        from sqlalchemy import delete
+        df = pd.DataFrame(list(rows))
+        run = IngestRun(pipeline=self.name); self.db.add(run); self.db.flush()
+        if df.empty:
+            run.finished_at = datetime.utcnow(); self.db.commit(); return run
+        run.n_in = len(df)
+        for c in ("n_samples", "source"):
+            if c not in df.columns: df[c] = 1 if c == "n_samples" else "iot_pulse"
+        df["asset_code"] = df.asset_code.map(normalise_code); df["channel"] = df.channel.astype(str).str.strip().str.lower()
+        amap = {a.asset_code: (a.asset_id, a.category) for a in self.db.query(Asset.asset_code, Asset.asset_id, Asset.category).all()}
+        df["asset_id"] = df.asset_code.map(lambda c: amap.get(c, (None, None))[0]); df["cat"] = df.asset_code.map(lambda c: amap.get(c, (None, None))[1])
+        df["chcat"] = df.channel.map(lambda c: CHANNELS.get(c, (None,))[0])
+        df["value_f"] = pd.to_numeric(df["value"], errors="coerce"); df["day_d"] = pd.to_datetime(df["day"], errors="coerce").dt.date
+        reason = pd.Series([None] * len(df), index=df.index, dtype=object)
+        reason[df.asset_id.isna()] = "unknown asset code"; reason[reason.isna() & df.chcat.isna()] = "unknown channel"
+        reason[reason.isna() & (df.chcat != df.cat)] = "channel does not belong to the asset category"
+        reason[reason.isna() & df.value_f.isna()] = "value is not numeric"; reason[reason.isna() & df.day_d.isna()] = "bad day"
+        bad = df[reason.notna()]
+        for i, r in bad.head(500).iterrows():
+            self.db.add(Quarantine(pipeline=self.name, raw_payload=_jsonable_row(r), reason=str(reason[i])))
+        run.n_quarantined = int(len(bad)); good = df[reason.isna()].drop_duplicates(["asset_id", "day_d", "channel"], keep="last")
+        if len(good):
+            days = sorted(set(good.day_d)); aids = list(set(good.asset_id))
+            self.db.execute(delete(TelemetryDay).where(TelemetryDay.asset_id.in_(aids), TelemetryDay.day.in_(days)))
+            self.db.bulk_insert_mappings(TelemetryDay, [dict(asset_id=r.asset_id, day=r.day_d, channel=r.channel, value=float(r.value_f),
+                                                              n_samples=int(r.n_samples) if str(r.n_samples).strip() else 1, source=str(r.source) or "iot_pulse")
+                                                         for r in good.itertuples()])
+        run.n_ok = int(len(good)); run.finished_at = datetime.utcnow(); self.db.commit()
+        return run
+
+
+def _jsonable_row(r) -> dict:
+    return {k: (None if (isinstance(v, float) and pd.isna(v)) else (str(v) if not isinstance(v, (int, float, str)) else v)) for k, v in r.items()
+            if k in ("asset_code", "day", "channel", "value", "n_samples", "source")}
+
+
+# ----------------------------------------------------------------------------- dependencies (asset graph)
+class DependencyRow(BaseModel):
+    parent_code: str
+    child_code: str
+    kind: str = "feeds"
+    weight: float = 1.0
+
+    @field_validator("kind")
+    @classmethod
+    def _k(cls, v):
+        v = str(v).strip().lower()
+        if v not in {"feeds", "serves", "protects"}:
+            raise ValueError("kind must be feeds|serves|protects")
+        return v
+
+
+class DependencyPipeline(Pipeline):
+    name = "dependencies"
+    schema = DependencyRow
+
+    def __init__(self, db, source="municipal"):
+        super().__init__(db, source)
+        self.m = AssetMatcher(db)
+
+    def handle(self, row: DependencyRow, raw: dict) -> None:
+        p, _ = self.m.resolve(row.parent_code, None, None); c, _ = self.m.resolve(row.child_code, None, None)
+        if p.asset_id == c.asset_id:
+            raise RowError("an asset cannot depend on itself")
+        e = self.db.query(Dependency).filter_by(parent_asset_id=p.asset_id, child_asset_id=c.asset_id).first() or Dependency(parent_asset_id=p.asset_id, child_asset_id=c.asset_id)
+        e.kind, e.weight, e.source = row.kind, float(row.weight), self.source
+        self.db.add(e)
+
+
 PIPELINES = {"cabinets": CabinetPipeline, "assets": AssetPipeline, "reports": ReportPipeline, "work_orders": WorkOrderPipeline,
-             "observations": ObservationPipeline, "weather": WeatherPipeline}
-ORDER = ["cabinets", "assets", "weather", "reports", "work_orders", "observations"]
+             "observations": ObservationPipeline, "weather": WeatherPipeline, "telemetry": TelemetryPipeline, "dependencies": DependencyPipeline}
+ORDER = ["cabinets", "assets", "dependencies", "weather", "reports", "work_orders", "observations", "telemetry"]

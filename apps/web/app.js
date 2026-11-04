@@ -9,7 +9,11 @@ const fmt = (x, d = 0) => (x == null ? "—" : Number(x).toLocaleString("en", { 
 const pct = (x, d = 0) => (x == null ? "—" : (100 * x).toFixed(d) + "%");
 const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const dt = (s) => (s ? s.replace("T", " ").slice(0, 16) : "—");
-const TITLES = { home: "لوحة المتابعة", week: "قائمة الأسبوع", map: "خريطة الخطر", ledger: "سجل قابلية التنبؤ", backtest: "الاختبار الرجعي", data: "البيانات والمدخلات", params: "معاملات التشغيل", ops: "التشغيل والمهام", method: "المنهجية" };
+const TITLES = { home: "لوحة المتابعة", week: "قائمة الأسبوع", map: "خريطة الخطر", schedule: "الجدولة والتحسين", twin: "التوأم الرقمي والإشارات", assistant: "مساعد بصيرة", ledger: "سجل قابلية التنبؤ", backtest: "الاختبار الرجعي", data: "البيانات والمدخلات", params: "معاملات التشغيل", ops: "التشغيل والمهام", method: "المنهجية" };
+const TIER_AR = { immediate: "فوري", urgent: "عاجل", planned: "مخطط", monitor: "مراقبة" };
+const tierBadge = (t) => t ? `<span class="tier ${t}">${TIER_AR[t] || t}</span>` : "";
+const winTxt = (w) => (w && w[0] != null) ? `اليوم ${w[0]}–${w[1]}` : "—";
+const ROUTE_COLORS = ["#0f5f6b", "#b7791f", "#2d5fa6", "#7b3fa0", "#1f8a5b"];
 const ROLE_AR = { supervisor: "مشرف", technician: "فني", manager: "مدير تشغيل", admin: "مدير النظام" };
 
 /* ------------------------------------------------------------------ infra */
@@ -56,7 +60,7 @@ function route() {
   $$("#nav a").forEach((a) => a.classList.toggle("active", a.getAttribute("href") === "#" + h));
   $("#title").textContent = TITLES[h] || ""; $("#crumbs").textContent = "بصيرة / " + (TITLES[h] || "");
   clearInterval(JOBPOLL);
-  ({ home: loadHome, week: loadWeek, map: () => loadAssets().then(drawMap), ledger: loadLedger, backtest: loadBacktest, data: loadData, params: loadParams, ops: loadOps }[h] || (() => {}))();
+  ({ home: loadHome, week: loadWeek, map: () => loadAssets().then(drawMap), schedule: loadSchedule, twin: loadTwinView, assistant: loadAssistant, ledger: loadLedger, backtest: loadBacktest, data: loadData, params: loadParams, ops: loadOps }[h] || (() => {}))();
 }
 
 /* ------------------------------------------------------------------ home */
@@ -93,11 +97,12 @@ async function loadWeek() {
   $("#approveAll").hidden = ME.role !== "supervisor" || CUR.status === "approved";
   $("#weekTable tbody").innerHTML = CUR.items.filter((i) => inCat(i.category)).map((i) => `<tr data-id="${i.item_id}" class="${i.status}">
     <td class="num">${i.rank}</td><td><a href="#map" data-asset="${i.asset_id}">${esc(i.code)}</a>${i.crit !== "none" ? ' <span class="crit">' + esc(CRIT_AR[i.crit] || i.crit) + "</span>" : ""}</td>
-    <td><span class="badge">${esc(CAT_AR[i.category] || i.category || "")}</span></td><td>${esc(i.type)}</td><td>${i.street === "main" ? "رئيسي" : "فرعي"}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
-    <td class="num">${fmt(i.risk_sar)}</td><td><b>${esc(i.action_ar)}</b></td><td class="reason">${esc(i.reason)}</td>
-    <td>${statusAr(i)}</td><td class="actions">${ME.role === "supervisor" && i.status === "proposed" ? `<button class="btn sm" data-act="approved">اعتماد</button><button class="btn ghost sm" data-act="overridden">تجاوز</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="11"><div class="empty">لا أصول فوق عتبة الإنذار هذا الأسبوع في هذه الفئة</div></td></tr>';
+    <td><span class="badge">${esc(CAT_AR[i.category] || i.category || "")}</span></td><td>${esc(i.type)}</td><td>${tierBadge(i.tier)}</td><td class="num"><span class="bar"><i class="${i.p >= .35 ? "hi" : i.p >= .1 ? "md" : ""}" style="width:${Math.min(100, i.p * 100)}%"></i></span>${pct(i.p)}</td>
+    <td class="num small">${winTxt(i.window)}</td><td class="num">${fmt(i.risk_sar)}</td><td><b>${esc(i.action_ar)}</b></td><td class="small">${i.route ? `مسار ${i.route} · ${i.seq}${i.grouped ? " · تجميع" : ""}` : "—"}</td><td class="reason">${esc(i.reason)}<br><small class="muted">${esc(i.safe_window || "")}</small></td>
+    <td>${statusAr(i)}</td><td class="actions">${ME.role === "supervisor" && i.status === "proposed" ? `<button class="btn sm" data-act="approved">اعتماد</button><button class="btn ghost sm" data-act="overridden">تجاوز</button>` : ""}</td></tr>`).join("") || '<tr><td colspan="13"><div class="empty">لا أصول فوق عتبة الإنذار هذا الأسبوع في هذه الفئة</div></td></tr>';
   const sumRisk = CUR.items.reduce((s, i) => s + i.risk_sar, 0);
-  $("#kpis").innerHTML = kpi("الأصول في القائمة", CUR.items.length) + kpi("الخطر المتوقع (ر.س)", fmt(sumRisk), "accent") + kpi("احتمال أعلى بند", pct(CUR.items[0]?.p)) + kpi("الحالة", CUR.status === "approved" ? "معتمدة" : "مقترحة");
+  const tiers = CUR.items.reduce((m, i) => ((m[i.tier] = (m[i.tier] || 0) + 1), m), {});
+  $("#kpis").innerHTML = kpi("الأصول في القائمة", CUR.items.length) + kpi("الخطر المعالَج (ر.س)", fmt(sumRisk), "accent") + kpi("فوري / عاجل", `${tiers.immediate || 0} / ${tiers.urgent || 0}`) + kpi("مسارات", new Set(CUR.items.map((i) => i.route).filter(Boolean)).size) + kpi("الحالة", CUR.status === "approved" ? "معتمدة" : "مقترحة");
 }
 const CRIT_AR = { mosque: "مسجد", school: "مدرسة", crossing: "معبر", hospital: "مستشفى" };
 const statusAr = (i) => ({ proposed: '<span class="badge">مقترح</span>', approved: '<span class="badge ok">معتمد</span>', overridden: `<span class="badge warn">تجاوز</span> <small>${esc(i.override_reason || "")}</small>`, done: `<span class="badge info">منفّذ</span> <small>${esc(i.outcome?.finding || "")}</small>`, skipped: '<span class="badge warn">مُلغى</span>' }[i.status] || i.status);
@@ -142,13 +147,103 @@ async function showCard(id) {
   const c = await api("/assets/" + id); const p = c.prediction, ex = p?.explanation || {};
   $("#detail").innerHTML = `<h3>${esc(c.code)} <small class="muted">${esc(CAT_AR[c.category] || "")} · ${esc(c.type)} · ${c.street === "main" ? "رئيسي" : "فرعي"} · ${esc(CRIT_AR[c.crit] || "")}</small></h3>
     <div class="kv" style="margin-top:8px"><span>الخزانة</span><b>${esc(c.cabinet || "—")}</b><span>التركيب</span><b>${esc(c.install || "—")}</b><span>الاحتمال 14 يومًا</span><b style="color:${riskColor(p?.p)}">${pct(p?.p, 1)}</b><span>الخطر (ر.س)</span><b>${fmt(p?.risk_sar)}</b><span>المصدر</span><b><span class="badge ${c.source === "simulated" ? "sim" : "ok"}">${c.source === "simulated" ? "محاكاة" : esc(c.source)}</span></b></div>
+    ${p ? `<div class="row" style="margin-top:8px">${tierBadge(p.tier)} <span class="badge">نافذة العطل: ${winTxt(p.window)}</span> ${p.mode ? `<span class="badge">${esc(MODE_AR_OF(p.mode))}</span>` : ""} <a href="#twin" data-twin="${esc(c.code)}" class="small">التوأم والإشارات ←</a></div>` : ""}
+    ${p && p.cof ? `<h4 style="margin-top:10px">العواقب المكافئة ${fmt(p.cof.total)} ر.س</h4>${cofBars(p.cof)}` : ""}
     ${c.list_item ? `<p style="margin-top:8px"><span class="badge info">في قائمة الأسبوع #${c.list_item.rank} · ${esc(c.list_item.action)} · ${esc(c.list_item.status)}</span></p><p class="reason">${esc(c.list_item.reason)}</p>` : ""}
     ${Object.keys(ex).length ? `<h4 style="margin-top:10px">لماذا هذا الاحتمال</h4><ul class="expl">${Object.entries(ex).sort((a, b) => b[1] - a[1]).map(([g, v]) => `<li><span>${esc(GROUP_AR[g] || g)}</span><i style="width:${Math.max(2, Math.abs(v) * 300)}px;background:${v >= 0 ? "#c0392b" : "#1f8a5b"}"></i>${(v * 100).toFixed(1)} نقطة</li>`).join("")}</ul>` : ""}
     <h4 style="margin-top:10px">العلامات المسجّلة</h4>${c.observations.length ? `<ul class="plain">${c.observations.slice(0, 5).map((o) => `<li>${o.at.slice(0, 10)} · ${esc(o.symptom)} · شدة ${o.severity} · ${esc(o.source)}</li>`).join("")}</ul>` : '<p class="muted small">لا علامات</p>'}
     <h4 style="margin-top:10px">الأعطال السابقة</h4>${c.failures.length ? `<ul class="plain">${c.failures.map((f) => `<li>${f.on} · ${esc(f.mode || "?")} · ${f.lead == null ? "بلا إنذار" : "إنذار قبل " + f.lead + " يومًا"}</li>`).join("")}</ul>` : '<p class="muted small">لا أعطال مسجّلة</p>'}
     <p class="muted small">النموذج <span class="mono">${esc((p?.model_version_id || "").slice(0, 8))}</span></p>`;
 }
-const GROUP_AR = { symptoms: "أعراض مرصودة على الأصل", network: "انقطاعات جزئية على الدائرة", weather: "الحرارة والأمطار", history: "سجل الأعطال السابقة", asset: "عمر الأصل ونوعه" };
+const GROUP_AR = { symptoms: "أعراض مرصودة على الأصل", network: "انقطاعات جزئية على الدائرة", weather: "الحرارة والأمطار", history: "سجل الأعطال السابقة", asset: "عمر الأصل ونوعه", telemetry: "إشارات الحساسات", environment: "الإجهاد البيئي والعمر المكافئ", graph: "الاعتماديات" };
+const COF_AR = { service: "انقطاع الخدمة", safety: "السلامة", financial: "علاوة الطارئ", environment: "البيئة", reputation: "السمعة" };
+const MODE_AR_OF = (m) => { for (const c of CATALOG) { const x = c.modes.find((y) => y.code === m); if (x) return x.ar; } return m; };
+function cofBars(cof) { const mx = Math.max(...Object.keys(COF_AR).map((k) => cof[k] || 0), 1); return Object.entries(COF_AR).map(([k, ar]) => `<div class="cofrow"><span>${ar}</span><i style="width:${Math.max(2, (cof[k] || 0) / mx * 100)}%"></i><span class="num">${fmt(cof[k])}</span></div>`).join("") + (cof.n_dependents ? `<p class="small muted">${fmt(cof.n_dependents)} أصل يعتمد عليه${cof.season_boost && cof.season_boost !== 1 ? ` · موسم الأمطار ×${cof.season_boost}` : ""}</p>` : ""); }
+document.addEventListener("click", (e) => { const a = e.target.closest("a[data-twin]"); if (a) { setTimeout(() => { $("#twinCode").value = a.dataset.twin; loadTwin(a.dataset.twin); }, 80); } });
+
+/* ------------------------------------------------------------------ schedule / optimiser */
+let SCH = null;
+async function loadSchedule() {
+  $("#topRight").innerHTML = "";
+  try { SCH = await api("/schedule/current"); } catch (e) { $("#schKpis").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  $("#schBanner").innerHTML = SCH.banner.length ? `<div class="callout warn">${SCH.banner.map(esc).join(" · ")}</div>` : "";
+  $("#schKpis").innerHTML = kpi("مهام الأسبوع", SCH.items.length) + kpi("الخطورة المعالَجة (ر.س)", fmt(SCH.total_risk), "accent") + kpi("التكلفة / الميزانية", `${fmt(SCH.total_cost)} / ${fmt(SCH.budget)}`) + kpi("الطواقم / المسارات", `${SCH.crews} / ${SCH.routes.length}`) + kpi("بالتجميع الجغرافي", SCH.grouped);
+  $("#tierCards").innerHTML = Object.entries(TIER_AR).map(([k, v]) => `<div class="tiercard"><span class="tier ${k}">${v}</span><b style="display:block">${SCH.tiers[k] || 0}</b></div>`).join("");
+  const pts = SCH.pareto; if (!$("#budgetIn").value) $("#budgetIn").value = SCH.budget;
+  $("#paretoChart").innerHTML = pts.length ? paretoChart(pts, SCH.budget) : '<div class="empty">لا منحنى بعد</div>';
+  $("#routeNote").textContent = `المسار يُرتَّب بأقرب جار؛ المهام الموسومة «تجميع» أُضيفت لأنها ضمن 250 م من المسار بتكلفة تنقل شبه صفرية`;
+  $("#routeList").innerHTML = SCH.routes.map((r, k) => `<div class="card" style="margin-bottom:8px;border-inline-start:4px solid ${ROUTE_COLORS[k % 5]}"><div class="hd"><h4>مسار ${r.route} · ${r.n} مهام · ${fmt(r.cost)} ر.س · خطورة ${fmt(r.risk)}</h4></div>
+    <table class="tbl">${r.items.map((i) => `<tr><td class="num">${i.seq}</td><td><a href="#twin" data-twin="${esc(i.code)}">${esc(i.code)}</a>${i.grouped ? ' <span class="badge sim">تجميع</span>' : ""}</td><td>${tierBadge(i.tier)}</td><td class="small">${esc(i.mode_ar || "")}</td><td class="num small">${winTxt(i.window)}</td><td class="num">${i.return_per_riyal}×</td><td class="small muted">${esc(i.safe_window)}</td><td>${i.work_order ? '<span class="badge ok">أمر عمل</span>' : (ME.role === "supervisor" || ME.role === "admin") ? `<button class="btn ghost sm" data-wo="${i.item_id}">أمر عمل</button>` : ""}</td></tr>`).join("")}</table></div>`).join("");
+  drawRoutes();
+}
+function paretoChart(pts, budget) {
+  const W = 620, H = 220, p = 40, xmax = Math.max(...pts.map((d) => d.budget)), xs = (b) => p + (b / xmax) * (W - 2 * p), ys = (v) => H - p - v * (H - 2 * p);
+  const path = pts.map((d, i) => `${i ? "L" : "M"}${xs(d.budget)},${ys(d.share)}`).join(" ");
+  const grid = [0, .25, .5, .75, 1].map((g) => `<line x1="${p}" x2="${W - p}" y1="${ys(g)}" y2="${ys(g)}" class="gridl"/><text x="${p - 6}" y="${ys(g) + 4}" class="tick">${g * 100}%</text>`).join("");
+  const dots = pts.map((d) => `<circle cx="${xs(d.budget)}" cy="${ys(d.share)}" r="${d.budget === budget ? 6 : 3.5}" fill="${d.budget === budget ? "#b7791f" : "#0f5f6b"}"/><text x="${xs(d.budget)}" y="${ys(d.share) - 9}" class="tick mid">${pct(d.share)}</text><text x="${xs(d.budget)}" y="${H - 8}" class="tick mid">${fmt(d.budget / 1000)}k</text>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" direction="ltr">${grid}<path d="${path}" class="line"/>${dots}</svg><p class="small text2">النقطة الذهبية = الميزانية الحالية. كل نقطة: نسبة الخطورة المُزالة · عدد المهام.</p>`;
+}
+function drawRoutes() {
+  const c = $("#routeMap"), ctx = c.getContext("2d"); ctx.fillStyle = "#eef2f5"; ctx.fillRect(0, 0, c.width, c.height); if (!ASSETS.length || !SCH) return;
+  const lons = ASSETS.map((a) => a.lon), lats = ASSETS.map((a) => a.lat), x0 = Math.min(...lons), x1 = Math.max(...lons), y0 = Math.min(...lats), y1 = Math.max(...lats);
+  const pad = 30, s = Math.min((c.width - 2 * pad) / (x1 - x0 || 1), (c.height - 2 * pad) / (y1 - y0 || 1)), T = (a) => [pad + (a.lon - x0) * s, c.height - pad - (a.lat - y0) * s];
+  ctx.fillStyle = "#c9d2db"; for (const a of ASSETS) { const [x, y] = T(a); ctx.fillRect(x - 1, y - 1, 2, 2); }
+  SCH.routes.forEach((r, k) => { const col = ROUTE_COLORS[k % 5]; const pts = r.items.slice().sort((a, b) => a.seq - b.seq).map(T);
+    ctx.strokeStyle = col; ctx.lineWidth = 2.5; ctx.beginPath(); pts.forEach(([x, y], i) => (i ? ctx.lineTo(x, y) : ctx.moveTo(x, y))); ctx.stroke();
+    r.items.forEach((i) => { const [x, y] = T(i); ctx.fillStyle = col; ctx.beginPath(); ctx.arc(x, y, i.grouped ? 5 : 7, 0, 7); ctx.fill(); ctx.fillStyle = "#fff"; ctx.font = "bold 9px sans-serif"; ctx.textAlign = "center"; ctx.fillText(i.seq, x, y + 3); }); });
+}
+$("#replan").onclick = async () => { try { await api("/schedule/replan", { method: "POST", body: JSON.stringify({ budget: +$("#budgetIn").value }) }); toast("أُعيدت الجدولة", "ok"); loadSchedule(); } catch (e) { toast(e.message, "bad"); } };
+document.addEventListener("click", async (e) => { const b = e.target.closest("button[data-wo]"); if (!b) return; try { const r = await api(`/assistant/work-order/${b.dataset.wo}`, { method: "POST" }); toast("وُلّد أمر العمل " + r.details.asset, "ok"); if (SCH) loadSchedule(); } catch (err) { toast(err.message, "bad"); } });
+
+/* ------------------------------------------------------------------ twin */
+async function loadTwinView() {
+  $("#topRight").innerHTML = "";
+  try { const sc = await api("/schedule/current"); $("#twinQuick").innerHTML = sc.items.slice(0, 6).map((i) => `<button class="chip" data-twinq="${esc(i.code)}">${esc(i.code)}</button>`).join(""); if (!$("#twinCode").value && sc.items[0]) { $("#twinCode").value = sc.items[0].code; loadTwin(sc.items[0].code); } } catch {}
+}
+$("#twinQuick").addEventListener("click", (e) => { const b = e.target.closest("[data-twinq]"); if (b) { $("#twinCode").value = b.dataset.twinq; loadTwin(b.dataset.twinq); } });
+$("#twinGo").onclick = () => loadTwin($("#twinCode").value.trim());
+async function loadTwin(code) {
+  if (!code) return; let t; try { t = await api("/twin/assets/" + encodeURIComponent(code)); } catch (e) { $("#twinBody").innerHTML = `<div class="empty">${esc(e.message)}</div>`; return; }
+  const p = t.prediction, S = t.sesi, d = t.diagnosis;
+  const sesiBars = Object.entries({ heat: "الحرارة (أرينيوس)", dust: "الغبار", humidity: "الرطوبة/الملوحة", season: "أحمال المواسم", rain: "الأمطار" }).map(([k, ar]) => `<div class="sesibar"><span>${ar}</span><i style="width:${Math.max(2, (S.components[k] || 0) * 100)}%"></i><span class="num">${((S.components[k] || 0) * 100).toFixed(0)}%</span></div>`).join("");
+  $("#twinBody").innerHTML = `
+    <div class="kpis">${kpi("الأصل", `${esc(t.code)} <small>${esc(t.type_ar)}</small>`)}${kpi("احتمال العطل 14 يومًا", p ? pct(p.p) : "—", "accent")}${kpi("نافذة العطل (ثقة 90%)", p ? winTxt(p.window) : "—")}${kpi("الأولوية", p ? tierBadge(p.tier) : "—")}${kpi("الخطورة (ر.س)", p ? fmt(p.risk_sar) : "—")}</div>
+    <div class="grid g2">
+      <div class="card"><div class="hd"><h3>الإشارات (آخر 120 يومًا)</h3><span class="small text2">خط الأساس = أول 60 يومًا للأصل نفسه؛ z &gt; 2 = شذوذ</span></div>
+        ${t.channels.length ? t.channels.map((c) => `<div class="chan"><div><b>${esc(c.ar)}</b><br><small class="muted">${esc(c.source)} · الأساس ${c.baseline} ${esc(c.unit)}</small></div><div class="spark">${spark(c.series, c.anomalous)}</div><div class="num"><b style="color:${c.anomalous ? "#c0392b" : "inherit"}">${c.last} ${esc(c.unit)}</b><br><small class="muted">z = ${c.z}</small></div></div>`).join("") : '<div class="empty">لا قنوات حساسات لهذا الأصل (الإنارة بلا عداد ذكي تعتمد على العلامات والبلاغات)</div>'}
+      </div>
+      <div class="stack">
+        <div class="card"><div class="hd"><h3>مؤشر الإجهاد البيئي SESI</h3><span class="badge">${S.index != null ? (S.index * 100).toFixed(0) + "%" : "—"}</span></div>${sesiBars}
+          <div class="kv" style="margin-top:8px"><span>العمر الزمني</span><b>${S.calendar_age_y ?? "—"} سنة</b><span>العمر المكافئ</span><b style="color:#b7791f">${S.equivalent_age_y ?? "—"} سنة (×${S.ageing_factor ?? "—"})</b></div>
+          <div class="spark" style="margin-top:6px">${spark(S.series, false)}</div></div>
+        <div class="card"><div class="hd"><h3>التشخيص المتوقع</h3>${d.mode_ar ? `<span class="badge info">${esc(d.mode_ar)}</span>` : ""}</div>
+          <p class="small text2">${d.basis === "evidence" ? `ثقة ${((d.confidence || 0) * 100).toFixed(0)}% من ${d.evidence.length} دليل` : "لا دليل مباشر؛ النمط الأرجح لنوع الأصل"}</p>
+          ${d.evidence && d.evidence.length ? `<ul class="plain">${d.evidence.map((e) => e.kind === "channel" ? `<li>إشارة ${esc(e.code)}: ${e.last} مقابل أساس ${e.baseline} (z ${e.z})</li>` : `<li>علامة ${esc(e.code)} في ${e.at} (شدة ${e.weight})</li>`).join("")}</ul>` : ""}</div>
+        ${p && p.cof ? `<div class="card"><div class="hd"><h3>العواقب المترابطة</h3><span class="badge">${fmt(p.cof.total)} ر.س</span></div>${cofBars(p.cof)}<p class="small muted">يعتمد عليه ${t.graph.dependents} أصل${t.graph.parent ? ` · يتغذى من ${esc(t.graph.parent)}` : ""}</p></div>` : ""}
+      </div>
+    </div>`;
+}
+function spark(series, bad) { if (!series || !series.length) return ""; const W = 400, H = 54, vs = series.map((s) => s.v), mn = Math.min(...vs), mx = Math.max(...vs), r = mx - mn || 1;
+  const path = series.map((s, i) => `${i ? "L" : "M"}${(i / (series.length - 1)) * W},${H - 4 - ((s.v - mn) / r) * (H - 8)}`).join(" "); return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" direction="ltr"><path d="${path}" fill="none" stroke="${bad ? "#c0392b" : "#0f5f6b"}" stroke-width="2"/></svg>`; }
+
+/* ------------------------------------------------------------------ assistant */
+async function loadAssistant() {
+  $("#topRight").innerHTML = "";
+  let sc = null; try { sc = await api("/schedule/current"); } catch {}
+  const a = sc?.items?.[0]?.code, b = sc?.items?.slice(-1)[0]?.code;
+  $("#askSuggest").innerHTML = [a && b ? `لماذا قُدّم ${a} على ${b}؟` : null, "ما ملخص الأسبوع؟", a ? `اشرح ${a}` : null].filter(Boolean).map((q) => `<button class="chip" data-q="${esc(q)}">${esc(q)}</button>`).join("");
+  if (!$("#chat").children.length) ask("ما ملخص الأسبوع؟");
+  loadWOs();
+}
+$("#askSuggest").addEventListener("click", (e) => { const b = e.target.closest("[data-q]"); if (b) ask(b.dataset.q); });
+$("#askForm").addEventListener("submit", (e) => { e.preventDefault(); const q = $("#askIn").value.trim(); if (q) { ask(q); $("#askIn").value = ""; } });
+async function ask(q) {
+  const chat = $("#chat"); chat.insertAdjacentHTML("beforeend", `<div class="msg q">${esc(q)}</div>`);
+  try { const r = await api("/assistant/ask", { method: "POST", body: JSON.stringify({ question: q }) }); chat.insertAdjacentHTML("beforeend", `<div class="msg a">${esc(r.answer)}</div>`); $("#asMode").textContent = r.mode === "llm" ? "نموذج لغوي + حقائق المنصة" : "قالبي من حقائق المنصة"; }
+  catch (e) { chat.insertAdjacentHTML("beforeend", `<div class="msg a">${esc(e.message)}</div>`); }
+  chat.scrollTop = chat.scrollHeight;
+}
+async function loadWOs() { const w = await api("/assistant/work-orders"); $("#woList").innerHTML = w.length ? w.map((x) => `<div class="wo"><div class="row between"><b>${esc(x.details.asset)} · ${esc(x.details.type_ar)}</b>${tierBadge(x.details.tier)}</div><pre>${esc(x.details.text)}</pre></div>`).join("") : '<div class="empty">لا أوامر عمل مولَّدة بعد؛ ولّدها من شاشة الجدولة</div>'; }
 
 /* ------------------------------------------------------------------ ledger */
 async function loadLedger() {
@@ -166,7 +261,7 @@ async function loadBacktest() {
   try { BT = await api("/ledger/backtest"); } catch (e) { $("#btKpis").innerHTML = `<div class="empty">لا اختبار رجعي بعد. ${ME.role === "admin" ? '<a href="#ops">شغّله من التشغيل</a>' : ""}</div>`; $("#btBars").innerHTML = $("#btSeries").innerHTML = ""; return; }
   $("#topRight").innerHTML = `<span class="badge ${BT.source_note === "simulation" ? "sim" : "ok"}">${BT.source_note === "simulation" ? "بيانات محاكاة" : "بيانات ميدانية"}</span>`;
   const P = BT.pfr_own_L;
-  $("#btKpis").innerHTML = kpi("PFR@L — بصيرة", pct(P.baseera), "accent") + kpi("PFR@L — قاعدة العمر", pct(P.age_rule)) + kpi("PFR@L — اليوم", "0%") + kpi("نسبة الطارئ", `${pct(BT.emergency_share.reactive)} ← ${pct(BT.emergency_share.baseera)}`) + kpi("أيام الانطفاء", `${fmt(BT.dark_days.reactive)} ← ${fmt(BT.dark_days.baseera)}`) + kpi("AUC · الدقة@30", `${BT.metrics.auc.toFixed(2)} · ${pct(BT.precision30)}`) + kpi("الأعطال / الأسابيع", `${BT.n_failures} / ${BT.weeks}`);
+  $("#btKpis").innerHTML = kpi("PFR@L — بصيرة", pct(P.baseera), "accent") + kpi("PFR@L — قاعدة العمر", pct(P.age_rule)) + kpi("PFR@L — اليوم", "0%") + kpi("نسبة الطارئ", `${pct(BT.emergency_share.reactive)} ← ${pct(BT.emergency_share.baseera)}`) + kpi("أيام الانطفاء", `${fmt(BT.dark_days.reactive)} ← ${fmt(BT.dark_days.baseera)}`) + kpi("AUC · الدقة@30", `${BT.metrics.auc.toFixed(2)} · ${pct(BT.precision30)}`) + kpi("الأعطال / الأسابيع", `${BT.n_failures} / ${BT.weeks}`) + kpi("تغطية نافذة العطل", BT.window_coverage != null ? pct(BT.window_coverage) + ` <small>(${BT.window_n})</small>` : "—") + kpi("الحد الأعلى النظري", BT.ceiling != null ? pct(BT.ceiling) : "—");
   $("#btBars").innerHTML = barChart(Object.entries(BT.pfr).map(([L, v]) => ({ label: "L=" + L, a: v.baseera, b: v.age_rule })), "PFR@L بحسب المهلة: بصيرة مقابل قاعدة العمر");
   $("#btSeries").innerHTML = lineChart(BT.series.map((s) => ({ x: s.week.slice(5), y: s.failures ? s.anticipated / s.failures : null })), "نسبة الأعطال المُنذَر بها أسبوعيًا");
   $("#btCats tbody").innerHTML = (BT.by_category || []).map((c) => `<tr><td><b>${esc(c.ar)}</b></td><td class="num">${fmt(c.n_assets)}</td><td class="num">${c.n}</td><td class="num"><b>${pct(c.pfr_L)}</b></td><td class="num">${pct(c.pfr_age)}</td><td class="num">${pct(c.emergency_share)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted small">الاختبار الرجعي الحالي سابق لإضافة الفئات؛ أعد تشغيله</td></tr>';

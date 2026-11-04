@@ -15,7 +15,7 @@ from ...core import catalog as CAT
 from ...core import params as P
 from ...core.config import get_settings
 from ...core.db import get_db
-from ...core.models import (Asset, AuditLog, Cabinet, FailureEvent, IngestRun, Job, ModelVersion, Observation, Quarantine, Report, User,
+from ...core.models import (Asset, AuditLog, Cabinet, Dependency, FailureEvent, IngestRun, Job, ModelVersion, Observation, Quarantine, Report, TelemetryDay, User,
                             WeatherDay, WeeklyList, WorkOrder)
 from ...core.security import audit, require
 from ...services import jobs as J
@@ -48,7 +48,8 @@ def overview(db: Session = Depends(get_db), u: User = Depends(require("admin", "
     job = J.running(db) or db.query(Job).order_by(Job.created_at.desc()).first()
     return dict(
         tables=dict(cabinets=span(Cabinet, Cabinet.install_date), assets=span(Asset, Asset.install_date), weather=span(WeatherDay, WeatherDay.day),
-                    reports=span(Report, Report.reported_at), work_orders=span(WorkOrder, WorkOrder.opened_at), observations=span(Observation, Observation.observed_at)),
+                    reports=span(Report, Report.reported_at), work_orders=span(WorkOrder, WorkOrder.opened_at), observations=span(Observation, Observation.observed_at),
+                    telemetry=span(TelemetryDay, TelemetryDay.day), dependencies=span(Dependency, Dependency.dep_id)),
         failures=db.query(func.count()).select_from(FailureEvent).filter_by(run_tag="live").scalar(),
         quarantine_open=db.query(func.count()).select_from(Quarantine).filter(Quarantine.resolved_at.is_(None)).scalar(),
         model=(dict(model_version_id=mv.model_version_id, name=mv.name, created_at=mv.created_at.isoformat(), auc=mv.metrics.get("auc"),

@@ -19,7 +19,7 @@ CRIT_W = {"none": 1.0, "mosque": 1.6, "school": 2.0, "crossing": 2.4, "hospital"
 ROAD_W = {"main": 1.8, "sec": 1.0}
 ACTION_AR = {"inspect": "فحص", "service": "صيانة", "replace": "استبدال"}
 GROUP_AR = {"symptoms": "أعراض مرصودة على الأصل", "network": "انقطاعات جزئية على نفس الدائرة", "weather": "الحرارة والأمطار",
-            "history": "سجل الأعطال السابقة", "asset": "عمر الأصل ونوعه"}
+            "history": "سجل الأعطال السابقة", "asset": "عمر الأصل ونوعه", "telemetry": "إشارات الحساسات (شذوذ واتجاه)", "environment": "الإجهاد البيئي SESI والعمر المكافئ", "graph": "الاعتماديات (ما يتأثر بعطله)"}
 
 
 @dataclass
@@ -70,8 +70,11 @@ def score_frame(df: pd.DataFrame) -> pd.DataFrame:
     s = get_settings()
     out = df.copy()
     cost = out.asset_type.map(planned_cost)
-    cof = [consequence_units(r, c, k, t) for r, c, k, t in zip(out.street_class, out.criticality, out.kind, out.asset_type)]
-    out["risk_sar"] = out.p_fail * (cost * (s.emergency_multiplier - 1) + pd.Series(cof, index=out.index) * s.consequence_sar_per_unit)
+    if "cof_total" in out.columns:   # v0.4: multi-dimensional, interconnected consequences from decision/cof.py
+        out["risk_sar"] = out.p_fail * out.cof_total
+    else:
+        cof = [consequence_units(r, c, k, t) for r, c, k, t in zip(out.street_class, out.criticality, out.kind, out.asset_type)]
+        out["risk_sar"] = out.p_fail * (cost * (s.emergency_multiplier - 1) + pd.Series(cof, index=out.index) * s.consequence_sar_per_unit)
     out["priority"] = out.risk_sar * s.intervention_efficacy / cost
     out["action"] = [action_for(p, a, t) for p, a, t in zip(out.p_fail, out.age_y, out.asset_type)]
     out["critical"] = [is_critical(r, c, k, t) for r, c, k, t in zip(out.street_class, out.criticality, out.kind, out.asset_type)]

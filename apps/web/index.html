@@ -29,6 +29,9 @@
       <a href="#home" data-roles="admin,manager,supervisor,technician"><i>▦</i> لوحة المتابعة</a>
       <a href="#week" data-roles="admin,manager,supervisor,technician"><i>☰</i> قائمة الأسبوع</a>
       <a href="#map" data-roles="admin,manager,supervisor,technician"><i>◎</i> خريطة الخطر</a>
+      <a href="#schedule" data-roles="admin,manager,supervisor,technician"><i>⇶</i> الجدولة والتحسين</a>
+      <a href="#twin" data-roles="admin,manager,supervisor,technician"><i>◈</i> التوأم والإشارات</a>
+      <a href="#assistant" data-roles="admin,manager,supervisor,technician"><i>✦</i> المساعد</a>
       <div class="sec">القياس</div>
       <a href="#ledger" data-roles="admin,manager,supervisor"><i>▤</i> سجل قابلية التنبؤ</a>
       <a href="#backtest" data-roles="admin,manager,supervisor,technician"><i>▥</i> الاختبار الرجعي</a>
@@ -66,7 +69,7 @@
       <div class="kpis" id="kpis"></div>
       <div class="card"><div class="hd"><div class="row"><h3>قائمة الأسبوع <span id="weekDate" class="muted"></span></h3><span id="capacity" class="badge"></span></div>
         <button id="approveAll" class="btn">اعتماد كل البنود</button></div>
-        <div class="scroll"><table class="tbl" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>الفئة</th><th>النوع</th><th>الشارع</th><th>الاحتمال 14 يومًا</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table></div>
+        <div class="scroll"><table class="tbl" id="weekTable"><thead><tr><th>#</th><th>الأصل</th><th>الفئة</th><th>النوع</th><th>الأولوية</th><th>الاحتمال 14 يومًا</th><th>نافذة العطل</th><th>الخطر (ر.س)</th><th>الإجراء</th><th>المسار</th><th>لماذا</th><th>الحالة</th><th></th></tr></thead><tbody></tbody></table></div>
       </div>
     </section>
 
@@ -74,6 +77,38 @@
     <section id="v-map" class="view" hidden>
       <div class="row between" style="margin-bottom:10px"><div class="legend"><i style="background:#1f8a5b"></i>منخفض <i style="background:#b7791f"></i>متوسط <i style="background:#c0392b"></i>مرتفع <i class="sq"></i>خزانة/لوحة · <b>▲</b> مضخة · <b>■</b> مصعد · <b>▬</b> رصيف · <b>◇</b> في قائمة الأسبوع</div></div>
       <div class="maprow"><canvas id="map" width="1100" height="760"></canvas><aside id="detail" class="card"><p class="muted">انقر على أصل لعرض بطاقته والتفسير.</p></aside></div>
+    </section>
+
+    <!-- ============================== schedule / optimiser -->
+    <section id="v-schedule" class="view" hidden>
+      <div id="schBanner"></div>
+      <div class="kpis" id="schKpis"></div>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h3>منحنى باريتو للميزانية</h3><span class="small text2">نسبة الخطورة المُزالة لكل ميزانية أسبوعية</span></div><div id="paretoChart"></div>
+          <div class="row" style="margin-top:8px"><label style="margin:0">ميزانية بديلة (ر.س) <input type="number" id="budgetIn" style="width:140px" step="5000"></label><button id="replan" class="btn ghost sm">أعد الجدولة بهذه الميزانية</button><span class="small muted">متاح ما دامت القائمة مقترحة</span></div></div>
+        <div class="card"><div class="hd"><h3>فئات الأولوية</h3></div><div id="tierCards" class="grid g2" style="gap:8px"></div>
+          <p class="small text2" style="margin-top:8px">فوري: خطورة عالية ويوم العطل المتوقع داخل مهلة التدخل · عاجل: خطورة عالية ونافذة خلال الشهر · مخطط: فوق عتبة الإنذار · مراقبة: دون تدخل</p></div>
+      </div>
+      <div class="card" style="margin-top:14px"><div class="hd"><h3>مسارات الطواقم</h3><span class="small text2" id="routeNote"></span></div>
+        <canvas id="routeMap" width="1100" height="520" style="width:100%;background:#eef2f5;border-radius:10px;border:1px solid var(--line)"></canvas><div id="routeList" style="margin-top:12px"></div></div>
+    </section>
+
+    <!-- ============================== twin -->
+    <section id="v-twin" class="view" hidden>
+      <div class="card"><div class="row between"><div class="row"><label style="margin:0">رمز الأصل <input id="twinCode" placeholder="PS-32 · EL-7 · LP-10001" style="width:220px"></label><button id="twinGo" class="btn">عرض التوأم</button></div><div id="twinQuick" class="row"></div></div></div>
+      <div id="twinBody" style="margin-top:14px"><div class="empty">اختر أصلًا من القائمة أو اكتب رمزه لعرض توأمه الرقمي: الإشارات، مؤشر الإجهاد البيئي، التشخيص، نافذة العطل، والعواقب.</div></div>
+    </section>
+
+    <!-- ============================== assistant -->
+    <section id="v-assistant" class="view" hidden>
+      <div class="grid g2">
+        <div class="card"><div class="hd"><h3>اسأل بصيرة</h3><span id="asMode" class="badge"></span></div>
+          <div id="chat" class="chat"></div>
+          <form id="askForm" class="row" style="margin-top:10px"><input id="askIn" placeholder="لماذا قُدّم PS-32 على LP-11114؟ · ما ملخص الأسبوع؟ · اشرح EL-7" style="flex:1"><button class="btn">اسأل</button></form>
+          <div class="row" style="margin-top:8px" id="askSuggest"></div></div>
+        <div class="card"><div class="hd"><h3>أوامر العمل المولَّدة</h3><span class="small text2">تشخيص متوقع، قطع غيار، خطوات، نافذة آمنة</span></div>
+          <div id="woList" class="scroll"></div></div>
+      </div>
     </section>
 
     <!-- ============================== ledger -->

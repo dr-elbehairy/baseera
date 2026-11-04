@@ -52,7 +52,7 @@ async function lookup(code) {
   $("#asset").hidden = false; $("#aCode").textContent = ASSET.code;
   $("#aMeta").textContent = `${ASSET.category_ar || ""} · ${ASSET.type} · ${ASSET.street === "main" ? "شارع رئيسي" : "شارع فرعي"}${ASSET.cabinet ? " · خزانة " + ASSET.cabinet : ""} · احتمال العطل ${ASSET.p == null ? "—" : Math.round(ASSET.p * 100) + "%"}`;
   if (ASSET.symptoms) { $("#symptoms").innerHTML = ASSET.symptoms.map((s) => `<button data-c="${s.code}">${s.ar}</button>`).join(""); SYM = null; }
-  $("#aTask").innerHTML = ASSET.task ? `<p><span class="badge info">مهمة الأسبوع: ${ASSET.task.action_ar}</span> <span class="badge">${ASSET.task.status}</span></p><p class="muted">${ASSET.task.reason || ""}</p>` : `<p class="muted">ليس في قائمة الأسبوع · ${ASSET.last_symptom ? "آخر علامة: " + ASSET.last_symptom.ar + " (" + ASSET.last_symptom.at.slice(0, 10) + ")" : "لا علامات سابقة"}</p>`;
+  $("#aTask").innerHTML = ASSET.task ? `<p><span class="badge info">مهمة الأسبوع: ${ASSET.task.action_ar}</span> <span class="badge">${ASSET.task.status}</span> ${ASSET.task.tier ? `<span class="badge warn">${({immediate:"فوري",urgent:"عاجل",planned:"مخطط",monitor:"مراقبة"})[ASSET.task.tier]}</span>` : ""}</p><p class="muted">${ASSET.task.reason || ""}</p>${ASSET.task.safe_window ? `<p class="muted small">النافذة الآمنة: ${ASSET.task.safe_window}</p>` : ""}${ASSET.task.work_order ? `<div class="card" style="background:var(--primary-soft);margin-top:8px"><b>أمر العمل</b><pre style="white-space:pre-wrap;font:14px/1.7 inherit;margin:6px 0 0">${ASSET.task.work_order.text}</pre></div>` : ""}` : `<p class="muted">ليس في قائمة الأسبوع · ${ASSET.last_symptom ? "آخر علامة: " + ASSET.last_symptom.ar + " (" + ASSET.last_symptom.at.slice(0, 10) + ")" : "لا علامات سابقة"}</p>`;
   $("#outcomeBox").hidden = !(ASSET.task && ASSET.task.status !== "done");
   window.scrollTo({ top: $("#asset").offsetTop - 60, behavior: "smooth" });
 }
@@ -81,6 +81,6 @@ async function sync() {
 }
 async function loadTasks() {
   try { const t = await api("/field/tasks"); localStorage.setItem("baseera.tasks", JSON.stringify(t)); render(t); } catch { render(JSON.parse(localStorage.getItem("baseera.tasks") || "[]")); }
-  function render(t) { $("#tasks").innerHTML = t.length ? t.map((x) => `<div class="task"><span>#${x.rank} <b>${x.code}</b> · ${x.action_ar}</span><button class="btn ghost sm" onclick="lookup('${x.code}')">فتح</button></div>`).join("") : "لا مهام معتمدة بعد"; }
+  function render(t) { $("#tasks").innerHTML = t.length ? t.map((x) => `<div class="task"><span>${x.route ? `مسار ${x.route}·${x.seq} ` : `#${x.rank} `}<b>${x.code}</b> · ${x.action_ar}${x.tier ? ` · <small>${({immediate:"فوري",urgent:"عاجل",planned:"مخطط",monitor:"مراقبة"})[x.tier]}</small>` : ""}${x.work_order ? " · 📄" : ""}<br><small class="muted">${x.safe_window || ""}</small></span><button class="btn ghost sm" onclick="lookup('${x.code}')">فتح</button></div>`).join("") : "لا مهام معتمدة بعد"; }
 }
 if (TOKEN) boot();

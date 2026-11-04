@@ -82,6 +82,8 @@ class WorkOrder(Base):
     cost_sar: Mapped[float | None] = mapped_column(Float)
     report_id: Mapped[str | None] = mapped_column(ForeignKey("ops_report.report_id"))
     source: Mapped[str] = mapped_column(String(32), default="municipal")
+    item_id: Mapped[str | None] = mapped_column(String(32))          # planned WO generated from a weekly-list item
+    details: Mapped[dict | None] = mapped_column(JSON)               # diagnosis, parts, checklist, safe window, generated text
 
 
 class Observation(Base):
@@ -161,6 +163,12 @@ class Prediction(Base):
     priority: Mapped[float] = mapped_column(Float)
     explanation: Mapped[dict | None] = mapped_column(JSON)
     run_tag: Mapped[str] = mapped_column(String(16), default="live")  # live | backtest
+    # v0.4 prognosis & consequences
+    mode_pred: Mapped[str | None] = mapped_column(String(32))
+    window_lo: Mapped[int | None] = mapped_column(Integer)      # days from week_start, conformal lower bound
+    window_hi: Mapped[int | None] = mapped_column(Integer)
+    tier: Mapped[str | None] = mapped_column(String(16))        # immediate | urgent | planned | monitor
+    cof: Mapped[dict | None] = mapped_column(JSON)              # consequence breakdown in SAR
 
 
 class WeeklyList(Base):
@@ -190,6 +198,11 @@ class ListItem(Base):
     override_reason: Mapped[str | None] = mapped_column(Text)
     decided_by: Mapped[str | None] = mapped_column(String(64))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    tier: Mapped[str | None] = mapped_column(String(16))
+    route: Mapped[int | None] = mapped_column(Integer)
+    seq: Mapped[int | None] = mapped_column(Integer)
+    grouped: Mapped[bool] = mapped_column(Boolean, default=False)   # ride-along item added by route grouping
+    safe_window: Mapped[str | None] = mapped_column(String(128))
     weekly_list = relationship("WeeklyList", back_populates="items")
 
 
@@ -300,3 +313,43 @@ class Job(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=_now, index=True)
     started_at: Mapped[datetime | None] = mapped_column(DateTime)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+# ----------------------------------------------------------------------------- v0.4: sensing, twin, prognosis, scheduling
+class TelemetryDay(Base):
+    """Daily aggregate of a condition-monitoring channel per asset (IoT retrofit kit, SCADA, controller, vehicle camera, smart meter)."""
+    __tablename__ = "ops_telemetry_day"
+    __table_args__ = (UniqueConstraint("asset_id", "day", "channel", name="uq_tele"), Index("ix_tele_day", "day"))
+    tele_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("ops_asset.asset_id"), index=True)
+    day: Mapped[date] = mapped_column(Date)
+    channel: Mapped[str] = mapped_column(String(32))
+    value: Mapped[float] = mapped_column(Float)
+    n_samples: Mapped[int] = mapped_column(Integer, default=1)
+    source: Mapped[str] = mapped_column(String(32), default="iot_pulse")
+
+
+class Dependency(Base):
+    """Dependency graph edge: parent failure interrupts the child (cabinet → poles, pump panel → pumps → tunnel)."""
+    __tablename__ = "ops_dependency"
+    __table_args__ = (UniqueConstraint("parent_asset_id", "child_asset_id", name="uq_dep"),)
+    dep_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    parent_asset_id: Mapped[str] = mapped_column(ForeignKey("ops_asset.asset_id"), index=True)
+    child_asset_id: Mapped[str] = mapped_column(ForeignKey("ops_asset.asset_id"), index=True)
+    kind: Mapped[str] = mapped_column(String(16), default="feeds")   # feeds | serves | protects
+    weight: Mapped[float] = mapped_column(Float, default=1.0)        # share of the child's service lost when the parent fails
+    source: Mapped[str] = mapped_column(String(32), default="municipal")
+
+
+class SesiDay(Base):
+    """Saudi Environmental Stress Index per sector and day with its components (0..1 each) and the ageing factor."""
+    __tablename__ = "twin_sesi_day"
+    day: Mapped[date] = mapped_column(Date, primary_key=True)
+    sector: Mapped[str] = mapped_column(String(32), primary_key=True, default="default")
+    heat: Mapped[float] = mapped_column(Float)
+    dust: Mapped[float] = mapped_column(Float)
+    humidity: Mapped[float] = mapped_column(Float)
+    season: Mapped[float] = mapped_column(Float)
+    rain: Mapped[float] = mapped_column(Float)
+    sesi: Mapped[dict] = mapped_column(JSON)          # per category: index 0..1
+    ageing: Mapped[dict] = mapped_column(JSON)        # per category: equivalent days consumed by this calendar day

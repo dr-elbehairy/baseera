@@ -21,13 +21,18 @@ from sqlalchemy import delete
 from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
-from ...core.models import Asset, ModelVersion, Prediction
+from ...core.models import Asset, FailureEvent, ModelVersion, Prediction
+from ..decision.cof import breakdown, dependents
+from ..decision.optimize import tier as tier_of
 from ..decision.rank import GROUP_AR, score_frame
 from ..features.build import FEATURES, frame
+from ..ledger.pfr import L_for
+from .prognosis import WindowModel, diagnose, train_window
 
 GROUPS = {"symptoms": ["symptoms_14d", "symptoms_30d", "max_sev_30d"], "network": ["circuit_partial_trips_14d", "cabinet_fails_365d"],
           "weather": ["tmax_14d", "tmax_fcst_7d", "rain_7d", "rain_30d", "dust_30d", "heat_load_120d"],
-          "history": ["days_since_last_fail", "fails_365d"], "asset": ["age_y", "type_code", "category_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y"]}
+          "history": ["days_since_last_fail", "fails_365d"], "asset": ["age_y", "type_code", "category_code", "main_road", "is_cabinet", "crit_w", "cabinet_age_y"],
+          "telemetry": ["tele_anom_7d", "tele_trend_30d", "parent_anom_7d"], "environment": ["sesi_30d", "equiv_age_y"], "graph": ["dep_children"]}
 
 
 @dataclass
@@ -36,6 +41,7 @@ class Bundle:
     iso: IsotonicRegression
     features: list[str]
     reference: np.ndarray
+    win: WindowModel | None = None
 
     def predict(self, X: np.ndarray) -> np.ndarray:
         return self.iso.predict(self.clf.predict_proba(X)[:, 1])
@@ -43,7 +49,7 @@ class Bundle:
 
 def _asset_frame(db: Session) -> pd.DataFrame:
     return pd.DataFrame([dict(asset_id=a.asset_id, asset_code=a.asset_code, asset_type=a.asset_type, category=a.category, kind=a.kind, street_class=a.street_class,
-                              criticality=a.criticality) for a in db.query(Asset).filter(Asset.active.is_(True)).all()])
+                              criticality=a.criticality, lon=a.lon, lat=a.lat) for a in db.query(Asset).filter(Asset.active.is_(True)).all()])
 
 
 def load_bundle(mv: ModelVersion) -> Bundle:
@@ -80,6 +86,8 @@ def train(db: Session, as_of: date, calibration_days: int = 70, name: str = "hgb
     top_feat = max(group_imp, key=group_imp.get)
     # PFR gate on validation: a capacity-limited weekly list from the model vs. the age rule
     pfr_model, pfr_age = _validation_pfr(db, va.assign(p_fail=p_va), s.lead_default)
+    Fdf = pd.DataFrame([dict(asset_id=f.asset_id, failed_on=f.failed_on) for f in db.query(FailureEvent).filter_by(run_tag="live")], columns=["asset_id", "failed_on"])
+    win = train_window(df, Fdf, as_of, calibration_days)
     prev = promoted(db)
     gates = {"auc": {"value": auc, "min": s.gate_min_auc, "pass": auc >= s.gate_min_auc},
              "brier_not_worse": {"value": brier, "prev": (prev.metrics.get("brier") if prev else None),
@@ -92,11 +100,12 @@ def train(db: Session, as_of: date, calibration_days: int = 70, name: str = "hgb
     mv = ModelVersion(name=name, trained_from=tr.week_start.min() if len(tr) else cut, trained_to=va.week_start.max(), features=FEATURES,
                       metrics={"auc": auc, "brier": brier, "pfr_at_L_validation": pfr_model, "pfr_age_rule_validation": pfr_age,
                                "n_train": int(len(tr)), "n_validation": int(len(va)), "positives_validation": int(y_va.sum()),
-                               "base_rate_validation": float(y_va.mean()), "importance": {f: float(v) for f, v in zip(FEATURES, imp)}},
+                               "base_rate_validation": float(y_va.mean()), "importance": {f: float(v) for f, v in zip(FEATURES, imp)},
+                               "window_q_days": (win.q if win else None), "window_coverage_validation": (win.coverage_val if win else None), "window_mean_width_days": (win.mean_width_val if win else None), "window_n_cal": (win.n_cal if win else 0)},
                       gates=gates, promoted=bool(ok or force), approved_by=approved_by, artifact_path="")
     db.add(mv); db.flush()
     mv.artifact_path = os.path.join(s.model_dir, f"{mv.model_version_id}.joblib")
-    joblib.dump(Bundle(clf=clf, iso=iso, features=FEATURES, reference=np.median(X_tr, axis=0)), mv.artifact_path)
+    joblib.dump(Bundle(clf=clf, iso=iso, features=FEATURES, reference=np.median(X_tr, axis=0), win=win), mv.artifact_path)
     if mv.promoted and prev is not None and prev.model_version_id != mv.model_version_id:
         prev.promoted = False
     db.commit()
@@ -159,6 +168,7 @@ def explain_row(b: Bundle, x: np.ndarray) -> dict:
 
 
 def score(db: Session, week_start: date, mv: ModelVersion | None = None, run_tag: str = "live", explain_top: int = 50) -> pd.DataFrame:
+    s = get_settings()
     mv = mv or promoted(db)
     if mv is None:
         raise RuntimeError("no promoted model; run train first")
@@ -170,14 +180,47 @@ def score(db: Session, week_start: date, mv: ModelVersion | None = None, run_tag
     df = df.merge(A, on="asset_id")
     X = df[b.features].values.astype(float)
     df["p_fail"] = b.predict(X)
+    # multi-dimensional, interconnected consequences (layer 6a)
+    deps = dependents(db)
+    cofs = [breakdown(t, c, st, cr, deps.get(a, 0.0), week_start.month) for a, t, c, st, cr in zip(df.asset_id, df.asset_type, df.category, df.street_class, df.criticality)]
+    df["cof_total"] = [c["total"] for c in cofs]
     sc = score_frame(df)
+    sc["cof"] = cofs
+    # conformal failure window (layer 4c)
+    if getattr(b, "win", None) is not None:
+        from .prognosis import evidence_mask
+        W = b.win.window(X).astype(float)
+        speak = evidence_mask(X, b.features) | (sc.p_fail.values >= s.alert_probability)   # the window is shown where a signal or the model's own alert exists
+        W[~speak] = np.nan
+        sc["window_lo"] = W[:, 0]; sc["window_hi"] = W[:, 1]; sc["window_mid"] = W[:, 2]
+    else:
+        sc["window_lo"] = np.nan; sc["window_hi"] = np.nan; sc["window_mid"] = np.nan
+    # priority tier (layer 6d)
+    q90 = float(np.quantile(sc.risk_sar.values, 0.90)) if len(sc) else 0.0
+    q97 = float(np.quantile(sc.risk_sar.values, 0.97)) if len(sc) else 0.0
     order = np.argsort(-sc.priority.values)[:explain_top]
     expl = {sc.asset_id.iloc[i]: explain_row(b, X[i]) for i in order}
-    db.execute(delete(Prediction).where(Prediction.week_start == week_start, Prediction.run_tag == run_tag, Prediction.model_version_id == mv.model_version_id))
+    diag = {}
+    for i in order[:max(60, explain_top)]:
+        r = sc.iloc[i]
+        d = diagnose(db, r.asset_id, r.asset_type, r.category, week_start); diag[r.asset_id] = d
+    def _tier(r):
+        mode = diag.get(r.asset_id, {}).get("mode"); L = L_for(mode)
+        lo = None if (r.window_lo is None or (isinstance(r.window_lo, float) and np.isnan(r.window_lo))) else int(r.window_lo)
+        hi = None if (r.window_hi is None or (isinstance(r.window_hi, float) and np.isnan(r.window_hi))) else int(r.window_hi)
+        mid = None if (r.window_mid is None or (isinstance(r.window_mid, float) and np.isnan(r.window_mid))) else int(r.window_mid)
+        return tier_of(float(r.p_fail), float(r.risk_sar), q90, q97, lo, hi, mid, L)
+    sc["tier"] = [_tier(r) for r in sc.itertuples()]
+    sc["mode_pred"] = sc.asset_id.map(lambda a: diag.get(a, {}).get("mode"))
+    db.execute(delete(Prediction).where(Prediction.week_start == week_start, Prediction.run_tag == run_tag))
+    def _i(v):
+        return None if v is None or (isinstance(v, float) and np.isnan(v)) else int(v)
     db.bulk_insert_mappings(Prediction, [dict(asset_id=r.asset_id, week_start=week_start, model_version_id=mv.model_version_id, p_fail=float(r.p_fail),
-                                              risk_sar=float(r.risk_sar), priority=float(r.priority), explanation=expl.get(r.asset_id), run_tag=run_tag)
+                                              risk_sar=float(r.risk_sar), priority=float(r.priority), explanation=expl.get(r.asset_id), run_tag=run_tag,
+                                              mode_pred=r.mode_pred, window_lo=_i(r.window_lo), window_hi=_i(r.window_hi), tier=r.tier, cof=r.cof)
                                          for r in sc.itertuples()])
     db.commit()
     sc["explanation"] = sc.asset_id.map(expl)
+    sc["diagnosis"] = sc.asset_id.map(diag)
     sc["model_version_id"] = mv.model_version_id
     return sc

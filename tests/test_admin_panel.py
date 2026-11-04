@@ -11,7 +11,7 @@ def test_overview_and_schema(client):
     ov = client.get("/api/admin/overview", headers=adm).json()
     assert ov["tables"]["assets"]["n"] > 0 and "simulated" in ov["tables"]["assets"]["by_source"] and ov["model"]
     sch = client.get("/api/admin/ingest/schema", headers=adm).json()
-    assert [p["name"] for p in sch] == ["cabinets", "assets", "weather", "reports", "work_orders", "observations"]
+    assert [p["name"] for p in sch] == ["cabinets", "assets", "dependencies", "weather", "reports", "work_orders", "observations", "telemetry"]
     tpl = client.get("/api/admin/ingest/assets/template.csv", headers=adm)
     assert tpl.status_code == 200 and tpl.text.startswith("asset_code,asset_type")
 

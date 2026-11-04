@@ -27,3 +27,10 @@ forecast available at W). Sources: `ops_asset`, `ops_cabinet`, `ledger_failure_e
 Label `label_h` = 1 if a failure (first signal) occurred in [W, W + H) with H = `horizon_days` (14). NULL until W + H ≤ as_of.
 
 Rules: adding a feature requires (1) a row here, (2) a leakage test in `tests/test_pipeline.py`, (3) a new model version through the gates.
+
+| tele_anom_7d | telemetry | max directional z-score of the 7-day mean before W vs the asset's first-60-day baseline, over its channels | ops_telemetry_day |
+| tele_trend_30d | telemetry | max 30-day change of the 7-day mean in baseline σ units | ops_telemetry_day |
+| parent_anom_7d | telemetry | tele_anom_7d of the parent in the dependency graph | ops_dependency |
+| sesi_30d | environment | mean SESI of the asset's category over the 30 days before W | twin_sesi_day |
+| equiv_age_y | environment | calendar age × mean ageing factor over the asset's life (SESI) | twin_sesi_day |
+| dep_children | graph | weighted number of assets whose service depends on this one | ops_dependency |

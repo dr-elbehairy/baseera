@@ -17,5 +17,10 @@
 | ADR-013 | Uploads always go through a dry-run preview before commit; rejected rows are quarantined with the reason and can be fixed and retried | silent partial loads | the operator sees what will happen before it happens |
 | ADR-014 | Light, Arabic-first design system with a single primary colour; risk is the only use of amber/red | hackathon palette | an operational tool for a municipality, not a pitch deck |
 | ADR-015 | One platform for the four asset families of the challenge via a single catalogue (`core/catalog.py`); lighting is the calibrated pilot, the others ship with a simplified, clearly simpler simulation | lighting-only prototype | the registered idea covers urban assets, not lamps; the catalogue makes the category a data row, not a code branch |
+| ADR-016 | Failure windows by conformalised quantile regression on days-to-failure (target coverage a parameter); shown only where a signal or alert exists; coverage re-measured per backtest | point RUL estimates | a number without a guarantee is not a schedule input (the vision's second innovation) |
+| ADR-017 | Consequences are five SAR terms with the dependency graph inside the service term; every term a calibratable parameter and the breakdown stored per prediction | single consequence weight | the pump-vs-pole example only works if consequences are explicit and auditable |
+| ADR-018 | Selection by MILP (HiGHS via scipy) under capacity and budget with critical assets forced; greedy fallback; backtest keeps the capacity-only rule so PFR@L stays comparable | greedy only / OR-Tools | exact small problems, no extra dependency; the backtest measures prediction, not budget policy |
+| ADR-019 | Routes by k-means + nearest neighbour with ride-along grouping within a radius at a reduced cost share | full VRP | the hackathon needs the grouping effect visible, not an optimal tour |
+| ADR-020 | The assistant is template-first from stored facts; an LLM (optional key) only rephrases those facts | free-form LLM | explanations must be auditable and never invent numbers |
 
 Changing the decision rule or the PFR@L definition requires a new ADR.

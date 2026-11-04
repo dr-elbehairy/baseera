@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from ...core.config import get_settings
 from ...core.db import get_db
-from ...core.models import Asset, ListItem, Outcome, User, WeeklyList
+from ...core.models import Asset, Prediction, ListItem, Outcome, User, WeeklyList
 from ...core.security import audit, require
 from ...services.decision.rank import ACTION_AR
 
@@ -19,6 +19,7 @@ router = APIRouter(prefix="/weekly-lists", tags=["weekly list"])
 def _serialise(db: Session, wl: WeeklyList) -> dict:
     A = {a.asset_id: a for a in db.query(Asset).filter(Asset.asset_id.in_([i.asset_id for i in wl.items])).all()} if wl.items else {}
     outcomes = {o.item_id: o for o in db.query(Outcome).filter(Outcome.item_id.in_([i.item_id for i in wl.items])).all()} if wl.items else {}
+    P = {p.asset_id: p for p in db.query(Prediction).filter(Prediction.week_start == wl.week_start, Prediction.run_tag == wl.run_tag, Prediction.asset_id.in_(list(A))).all()} if A else {}
     used = sum(1 for i in wl.items if i.status in ("proposed", "approved", "done"))
     return dict(list_id=wl.list_id, week_start=str(wl.week_start), status=wl.status, capacity=wl.capacity, used=used, run_tag=wl.run_tag,
                 model_version_id=wl.model_version_id, items=[
@@ -27,6 +28,9 @@ def _serialise(db: Session, wl: WeeklyList) -> dict:
                          crit=A[i.asset_id].criticality if i.asset_id in A else None, lon=A[i.asset_id].lon if i.asset_id in A else None,
                          lat=A[i.asset_id].lat if i.asset_id in A else None, action=i.action, action_ar=ACTION_AR.get(i.action, i.action),
                          p=round(i.p_fail, 4), risk_sar=round(i.risk_sar, 1), reason=i.reason, status=i.status, override_reason=i.override_reason,
+                         tier=i.tier, route=i.route, seq=i.seq, grouped=i.grouped, safe_window=i.safe_window,
+                         window=([P[i.asset_id].window_lo, P[i.asset_id].window_hi] if i.asset_id in P and P[i.asset_id].window_lo is not None else None),
+                         mode=(P[i.asset_id].mode_pred if i.asset_id in P else None),
                          outcome=(dict(finding=outcomes[i.item_id].finding, action_taken=outcomes[i.item_id].action_taken,
                                        cost=outcomes[i.item_id].cost_sar, at=outcomes[i.item_id].visited_at.isoformat()) if i.item_id in outcomes else None))
                     for i in sorted(wl.items, key=lambda x: x.rank)])

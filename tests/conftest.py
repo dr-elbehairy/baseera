@@ -41,8 +41,9 @@ def pipeline_ready(db_ready):
     from baseera.services.model.core import train
     from baseera.services.plan import plan_week
     from baseera.services.ledger.monthly import compute_months
+    from baseera.services.twin.sesi import compute as sesi_compute
     with session_scope() as db:
-        derive_failures(db)
+        derive_failures(db); sesi_compute(db)
         build_features(db, as_of=AS_OF)
         mv = train(db, as_of=AS_OF, force=True, approved_by="tests")
         wl = plan_week(db, AS_OF)

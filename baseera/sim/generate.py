@@ -214,8 +214,11 @@ def generate(cfg: SimConfig = SimConfig()) -> dict[str, pd.DataFrame]:
         assets = pd.concat([assets, g["assets"]], ignore_index=True); reports_df = pd.concat([reports_df, g["reports"]], ignore_index=True)
         wos_df = pd.concat([wos_df, g["work_orders"]], ignore_index=True); observations = pd.concat([observations, g["observations"]], ignore_index=True)
         truth_df = pd.concat([truth_df, g["truth"]], ignore_index=True); n_fail_other += g["n_failures"]; n_ep_other += g["n_symptom_episodes"]
-    return dict(assets=assets, cabinets=cabinets, weather=weather, reports=reports_df, work_orders=wos_df,
-                observations=observations, truth=truth_df,
+    from .telemetry import dependencies, generate as gen_tele
+    telemetry = gen_tele(assets, truth_df, DATES, weather, np.random.default_rng(cfg.seed + 77))
+    deps = dependencies(assets)
+    return dict(assets=assets, cabinets=cabinets, dependencies=deps, weather=weather, reports=reports_df, work_orders=wos_df,
+                observations=observations, telemetry=telemetry, truth=truth_df,
                 meta=pd.DataFrame([dict(n_poles=N, n_cabinets=P.n_cabinets, n_other=cfg.n_pumping + cfg.n_elevators + cfg.n_pavement, days=D, start=P.start,
                                         seed=P.seed, vis_main=cfg.vis_main, vis_sec=cfg.vis_sec, n_failures=len(EV) + n_fail_other,
                                         n_symptom_episodes=len(PR) + n_ep_other, n_observations=len(observations))]))

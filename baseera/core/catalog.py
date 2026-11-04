@@ -110,3 +110,50 @@ def describe() -> list[dict]:
                  types=[dict(code=t, ar=tv[1], kind=tv[2], design_life_y=tv[3], cost_planned=tv[4]) for t, tv in TYPES.items() if tv[0] == c],
                  modes=[dict(code=m, ar=mv[1], cls=mv[2], L=mv[3]) for m, mv in MODES.items() if mv[0] == c],
                  symptoms=[s for s in symptoms_for(c) if s["category"] == c]) for c, v in CATEGORIES.items()]
+
+
+# ----------------------------------------------------------------------------- v0.4: sensing, diagnosis, parts, consequences
+# telemetry channel → (category, label_ar, unit, direction of degradation: +1 rising / -1 falling, source)
+CHANNELS: dict[str, tuple[str, str, str, int, str]] = {
+    "vibration_mms": ("pumping", "اهتزاز المضخة", "مم/ث", +1, "iot_pulse"), "motor_temp_c": ("pumping", "حرارة محرك المضخة", "°م", +1, "iot_pulse"),
+    "flow_ratio": ("pumping", "نسبة التدفق إلى التصميم", "%", -1, "scada"), "insulation_mohm": ("pumping", "مقاومة العزل", "MΩ", -1, "scada"),
+    "drive_current_a": ("elevators", "تيار محرك الجر", "أمبير", +1, "iot_pulse"), "door_cycle_s": ("elevators", "زمن دورة الأبواب", "ث", +1, "controller"),
+    "trips_per_day": ("elevators", "توقفات لوحة التحكم يوميًا", "عدد", +1, "controller"), "leveling_mm": ("elevators", "خطأ التسوية", "مم", +1, "controller"),
+    "crack_mm": ("pavement", "عرض التشقق (كاميرا المركبة)", "مم", +1, "vehicle_cam"), "settlement_mm": ("pavement", "الهبوط (InSAR/المركبة)", "مم", +1, "vehicle_cam"),
+    "driver_current_a": ("lighting", "تيار مشغّل الإنارة", "أمبير", -1, "smart_meter"), "lamp_hours": ("lighting", "ساعات تشغيل المصباح", "ساعة", +1, "cms"),
+}
+# failure mode → (parts_ar, checklist_ar, hours)
+PARTS: dict[str, tuple[str, str, float]] = {
+    "led_driver": ("مشغّل LED بديل", "قياس تيار المشغّل، فحص الحرارة، استبدال المشغّل، اختبار التشغيل", 1.0), "lamp_eol": ("مصباح هالوجين/صوديوم", "استبدال المصباح، فحص القاعدة", 0.5),
+    "cabinet": ("قاطع + مرحّل تحكم", "فحص القواطع والتوصيلات، قياس الأحمال على الدوائر، تنظيف الخزانة", 3.0), "cable_joint": ("وصلة كابل + مواد عزل", "كشف الوصلة، اختبار العزل بعد التجفيف، إعادة العزل", 2.5),
+    "solar_battery": ("بطارية + فحص منظم الشحن", "قياس جهد البطارية والشحن، تنظيف اللوح، استبدال البطارية", 1.5), "collision": ("عمود/قاعدة بحسب الضرر", "تأمين الموقع، تقييم الضرر، إصلاح أو استبدال", 4.0),
+    "bearing_wear": ("محمل كروي ×2 + مانع تسرب", "قياس الاهتزاز قبل/بعد، استبدال المحامل، محاذاة العمود، اختبار التشغيل", 6.0), "seal_leak": ("مانع تسرب ميكانيكي", "تفريغ، استبدال المانع، اختبار ضغط", 4.0),
+    "motor_winding": ("إعادة لف أو محرك بديل", "قياس مقاومة العزل، فحص الملفات، استبدال المحرك", 8.0), "panel_fault": ("قاطع + كونتاكتور + مرحّل", "فحص اللوحة حراريًا، استبدال المكوّن، اختبار التسلسل", 3.0),
+    "intake_blockage": ("شبكة مدخل", "تنظيف المدخل، فحص الصمام العكسي، اختبار التدفق", 2.0),
+    "door_mechanism": ("مشغّل باب + حساس أمان", "ضبط المسار، استبدال المشغّل، معايرة الحساس", 3.0), "drive_motor": ("محرك جر أو فرامل", "قياس التيار والحرارة، فحص الفرامل، استبدال", 8.0),
+    "controller": ("لوحة تحكم / مرحّل", "تحميل سجل الأعطال، استبدال المكوّن، اختبار الرحلات", 4.0), "rope_wear": ("حبال/سلاسل + بكرات", "قياس قطر الحبل، استبدال الحبال، شد ومعايرة", 10.0),
+    "sensor": ("حساس حدي / مفتاح", "اختبار الإشارات، استبدال الحساس، معايرة التسوية", 1.5),
+    "subsidence": ("رمل مضغوط + بلاط", "إزالة البلاط، إعادة الردم والدك، إعادة التبليط", 12.0), "tile_failure": ("بلاط + مونة", "إزالة التالف، تسوية، تبليط", 6.0),
+    "drainage": ("شبكة مصرف + تنظيف", "تنظيف المصرف، إعادة تسوية الميل، اختبار بالماء", 4.0), "impact": ("بردورة/بلاط", "تقييم الضرر، إصلاح", 3.0),
+}
+# evidence weights: symptom or channel-anomaly → mode (diagnosis)
+EVIDENCE: dict[str, dict[str, float]] = {
+    "flicker": {"led_driver": 1.0}, "cycling": {"lamp_eol": 1.0}, "dim": {"solar_battery": 0.8, "lamp_eol": 0.3}, "partial_trip": {"cabinet": 1.0}, "intermittent": {"cable_joint": 1.0},
+    "vibration": {"bearing_wear": 1.0}, "overheating": {"motor_winding": 0.9, "bearing_wear": 0.3}, "low_flow": {"intake_blockage": 1.0}, "leak": {"seal_leak": 1.0},
+    "tripping": {"panel_fault": 0.8, "motor_winding": 0.4}, "blockage": {"intake_blockage": 1.0},
+    "door_slow": {"door_mechanism": 1.0}, "jerk": {"drive_motor": 0.7, "rope_wear": 0.5}, "leveling": {"rope_wear": 0.6, "sensor": 0.6}, "trip": {"controller": 0.7, "sensor": 0.5}, "alarm": {"controller": 1.0},
+    "crack": {"tile_failure": 0.7, "subsidence": 0.5}, "settlement": {"subsidence": 1.0}, "tile_loose": {"tile_failure": 1.0}, "pooling": {"drainage": 1.0}, "edge_damage": {"impact": 1.0},
+    "vibration_mms": {"bearing_wear": 1.0}, "motor_temp_c": {"motor_winding": 1.0}, "flow_ratio": {"intake_blockage": 1.0}, "insulation_mohm": {"motor_winding": 1.0},
+    "drive_current_a": {"drive_motor": 1.0}, "door_cycle_s": {"door_mechanism": 1.0}, "trips_per_day": {"controller": 1.0}, "leveling_mm": {"rope_wear": 0.6, "sensor": 0.6},
+    "crack_mm": {"tile_failure": 0.8, "subsidence": 0.4}, "settlement_mm": {"subsidence": 1.0}, "driver_current_a": {"led_driver": 1.0}, "lamp_hours": {"lamp_eol": 1.0},
+}
+# consequence factors per category: (safety, environment, reputation) multipliers; service comes from consequence_units + dependency graph
+COF_FACTORS: dict[str, tuple[float, float, float]] = {"lighting": (1.0, 0.2, 1.0), "pumping": (3.0, 2.5, 1.5), "elevators": (2.5, 0.2, 1.8), "pavement": (1.5, 0.3, 1.2)}
+# SESI weights per category: heat, dust, humidity, season, rain
+SESI_W: dict[str, tuple[float, float, float, float, float]] = {"lighting": (0.55, 0.20, 0.10, 0.05, 0.10), "pumping": (0.25, 0.25, 0.15, 0.10, 0.25),
+                                                                "elevators": (0.35, 0.15, 0.10, 0.35, 0.05), "pavement": (0.20, 0.10, 0.10, 0.20, 0.40)}
+CHANNEL_AR = {c: v[1] for c, v in CHANNELS.items()}
+
+
+def channels_for(category: str) -> list[str]:
+    return [c for c, v in CHANNELS.items() if v[0] == category]

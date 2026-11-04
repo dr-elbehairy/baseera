@@ -76,6 +76,18 @@ action    = inspect (< 0.35) · service (0.35–0.70) · replace (≥ 0.70 or be
 ```
 Every parameter is in `.env` (`baseera/core/config.py`) to be calibrated from the survey and mentor sessions.
 
+## The seven layers of the vision — what v0.4 implements
+
+| Layer (idea document) | Implementation | Where |
+|---|---|---|
+| 1 Multi-source sensing | daily telemetry channels per category (IoT "نبض" kit, SCADA, elevator controllers, vehicle cameras, smart meters) through a bulk pipeline; reports, work orders, technician symptoms, weather | `ops_telemetry_day`, `services/ingest`, `sim/telemetry.py` |
+| 2 Data fabric & governance | quarantine with reasons, reporter hashing (PDPL), roles + audit, catalogue as ontology, dependency graph | `ops_dependency`, `core/catalog.py` |
+| 3 Hybrid digital twin + SESI | Saudi Environmental Stress Index per day (heat/Arrhenius, dust, humidity, seasons, rain) → ageing factor → equivalent age per asset; physics-aware features | `services/twin/sesi.py`, `twin_sesi_day` |
+| 4 Prognostics engine | anomaly (directional z-score vs the asset's own baseline), diagnosis (evidence-weighted failure mode), failure window by conformalised quantile regression (90% target, coverage re-measured in every backtest) | `services/model/prognosis.py` |
+| 5 Predictability ledger | PFR@L per L / mode / category, A/B/C, theoretical ceiling, window coverage, drift, promotion gates | `services/ledger`, `services/backtest.py` |
+| 6 Risk–cost optimiser | CoF in SAR (financial, service × dependency graph, safety, environment, reputation, flood-season boost); MILP selection under crew capacity and budget; Pareto budget frontier; crew routes with ride-along grouping; Saudi constraints (heat ban, Ramadan, Hajj freeze, flood season); فوري/عاجل/مخطط/مراقبة | `services/decision/{cof,optimize,calendar}.py`, `services/plan.py` |
+| 7 Decision & interaction | supervisor app (schedule, twin, assistant), Arabic assistant that explains "why X before Y" from stored facts and generates work orders (diagnosis, parts, checklist, safe window) to the technician PWA; closed loop via outcomes | `services/assistant.py`, `apps/` |
+
 ## Asset categories (the whole challenge, one platform)
 
 The challenge names four urban-asset families; the platform carries all four through the same pipeline. `baseera/core/catalog.py`
@@ -131,7 +143,9 @@ tests/              conftest (small simulation) · test_ingest · test_pipeline 
 docs/               adr/ · security.md · runbook.md
 ```
 
-## Status (v0.3.0, 4 Nov 2026)
+## Status (v0.4.0, 4 Nov 2026)
+
+* v0.4.0 — the full vision end to end: telemetry layer, SESI twin, diagnosis + conformal failure window, multi-dimensional interconnected consequences, MILP/Pareto/routes/constraints optimiser, Arabic assistant and generated work orders; 32 tests.
 
 * v0.3.0 — four asset categories (lighting, pumping, elevators, pavements) through one catalogue; category filters, catalogue tab, per-category backtest; simplified simulation for the non-pilot categories.
 

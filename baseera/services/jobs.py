@@ -71,9 +71,11 @@ def _as_of(params: dict) -> date:
 def run_features(db, params, p):
     from .features.build import build_features
     from .ledger.failures import derive_failures
+    from .twin.sesi import compute as sesi_compute
     p(5, "اشتقاق أحداث العطل من أوامر العمل"); n_f = derive_failures(db)
-    p(25, "بناء الخصائص الأسبوعية as-of"); n = build_features(db, as_of=_as_of(params))
-    return dict(failures=n_f, feature_rows=n)
+    p(12, "حساب مؤشر الإجهاد البيئي SESI يوميًا"); n_s = sesi_compute(db)
+    p(25, "بناء الخصائص الأسبوعية as-of (علامات، إشارات، SESI، اعتماديات)"); n = build_features(db, as_of=_as_of(params))
+    return dict(failures=n_f, sesi_days=n_s, feature_rows=n)
 
 
 def run_train(db, params, p):
@@ -135,7 +137,7 @@ def run_purge(db, params, p):
     import os, shutil
     p(10, "حذف البيانات التشغيلية والمشتقة")
     for t in (M.Outcome, M.ListItem, M.WeeklyList, M.Prediction, M.AssetWeek, M.FailureEvent, M.LedgerMonth, M.Observation, M.WorkOrder,
-              M.Report, M.Quarantine, M.IngestRun, M.ModelVersion, M.WeatherDay, M.Asset, M.Cabinet):
+              M.Report, M.Quarantine, M.IngestRun, M.ModelVersion, M.TelemetryDay, M.Dependency, M.SesiDay, M.WeatherDay, M.Asset, M.Cabinet):
         db.execute(delete(t))
     db.commit()
     s = get_settings()

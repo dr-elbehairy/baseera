@@ -87,7 +87,17 @@ def create_all() -> None:
 def _migrate(eng) -> None:
     """Additive migrations for databases created by earlier versions (Alembic comes with the production stack)."""
     from sqlalchemy import inspect, text
-    cols = {c["name"] for c in inspect(eng).get_columns("ops_asset")}
+    insp = inspect(eng)
+    adds = {"ops_prediction": [("mode_pred", "VARCHAR(32)"), ("window_lo", "INTEGER"), ("window_hi", "INTEGER"), ("tier", "VARCHAR(16)"), ("cof", "JSON")],
+            "ops_list_item": [("tier", "VARCHAR(16)"), ("route", "INTEGER"), ("seq", "INTEGER"), ("grouped", "BOOLEAN DEFAULT 0"), ("safe_window", "VARCHAR(128)")],
+            "ops_work_order": [("item_id", "VARCHAR(32)"), ("details", "JSON")]}
+    for table, columns in adds.items():
+        have = {c["name"] for c in insp.get_columns(table)}
+        for name, typ in columns:
+            if name not in have:
+                with eng.begin() as con:
+                    con.execute(text(f"ALTER TABLE {table} ADD COLUMN {name} {typ}"))
+    cols = {c["name"] for c in insp.get_columns("ops_asset")}
     if "category" not in cols:
         with eng.begin() as con:
             con.execute(text("ALTER TABLE ops_asset ADD COLUMN category VARCHAR(16) DEFAULT 'lighting'"))

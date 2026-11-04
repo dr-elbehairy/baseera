@@ -67,8 +67,9 @@ def cmd_derive(a):
 def cmd_features(a):
     from .services.features.build import build_features
     from .services.ledger.failures import derive_failures
+    from .services.twin.sesi import compute as sesi_compute
     with session_scope() as db:
-        derive_failures(db)
+        derive_failures(db); sesi_compute(db)
         n = build_features(db, as_of=_d(a.as_of) or date.today())
     print("feature rows:", n)
 
@@ -129,8 +130,9 @@ def cmd_demo(a):
         seed_demo_users(db)
         summ = seed_simulated(db, SimConfig(n_poles=a.poles, n_cabinets=a.cabinets, days=a.days, seed=a.seed, vis_main=a.vis_main, vis_sec=a.vis_sec))
         print(f"[1/6] simulated source ingested: {summ['runs']}  ({time.time()-t0:.0f}s)")
-        derive_failures(db); n = build_features(db, as_of=as_of)
-        print(f"[2/6] failures derived, {n} feature rows  ({time.time()-t0:.0f}s)")
+        from .services.twin.sesi import compute as sesi_compute
+        derive_failures(db); sesi_compute(db); n = build_features(db, as_of=as_of)
+        print(f"[2/6] failures derived, SESI computed, {n} feature rows  ({time.time()-t0:.0f}s)")
         mv = train(db, as_of=as_of, approved_by="demo", force=a.force)
         gates_txt = ", ".join("%s:%s" % (k, v["pass"]) for k, v in mv.gates.items())
         print(f"[3/6] model {mv.model_version_id[:8]} promoted={mv.promoted} AUC={mv.metrics['auc']:.3f} gates={{{gates_txt}}}  ({time.time()-t0:.0f}s)")
